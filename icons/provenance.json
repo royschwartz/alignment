@@ -1,0 +1,13 @@
+{
+  "source": "https://archive.org/details/hypercard_iconstack-176",
+  "rights": "Historical copying/modification encouraged; commercial-game reuse unverified",
+  "changes": "Six original monochrome PNGs copied without redrawing. Displayed at integer scale.",
+  "icons": {
+    "tree": "plants-trees/084-plants-trees-r01-c02.png",
+    "tree-small": "plants-trees/084-plants-trees-r01-c05.png",
+    "sun": "cosmic/025-cosmic-r01-c03.png",
+    "home": "home/053-home-r01-c03.png",
+    "food": "food/047-food-r01-c07.png",
+    "bread": "food/047-food-r01-c05.png"
+  }
+}

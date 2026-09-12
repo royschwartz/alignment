@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'">
+  <title>Alignment · Stage 1</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="desktop"><div id="game" class="sr-only" aria-hidden="true"></div>
+    <div id="stack" role="region" aria-label="Alignment game">
+      <canvas id="card" aria-hidden="true"></canvas>
+      <div id="controls" aria-label="Card controls"></div>
+    </div>
+    <p id="narration" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+    <p id="boot" role="status">Opening the stack...</p>
+  </main>
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form method="dialog"><button class="close" aria-label="Close settings">×</button></form>
+    <h1 id="settings-title">Stack settings</h1>
+    <label><input id="sound" type="checkbox"> Sound</label>
+    <label><input id="motion" type="checkbox"> Reduce motion</label>
+    <label>Card transitions<select id="transition"><option value="authored">Chosen for each scene</option></select></label>
+    <label>Speed<select id="speed"></select></label><label><input id="large-text" type="checkbox"> Larger text</label>
+    <button id="show-guide">How to play</button><button id="show-progress">Your life</button><button id="show-effects">Try the visual effects</button>
+    <button id="restart">Start a new game...</button>
+    <details><summary>About this stack</summary><p>The complete offline first chapter of Alignment in the original HyperCard-inspired card renderer. Feed your friend, learn, begin a fintech career, and meet PERSON. Reading cards takes no time. Progress saves on this device.</p><p>The classic visual effects are new implementations inspired by HyperCard. This is not a Macintosh emulator or a HyperTalk interpreter.</p><p>Historical icons: IconStack 1.7.6 (1993), compiled by Geoff Williams and Dan Lyons. Commercial-game reuse is unverified. Source references and the original notice are included with this prototype.</p></details>
+    <form method="dialog"><button class="primary">Return to game</button></form>
+  </dialog>
+  <dialog id="effects-dialog" aria-labelledby="effects-title">
+    <form method="dialog"><button class="close" aria-label="Close visual effects">×</button></form>
+    <h1 id="effects-title">Visual effects</h1>
+    <canvas id="effect-preview" width="288" height="152" aria-label="Visual effect preview"></canvas>
+    <label>Effect<select id="demo-effect"></select></label>
+    <label>To<select id="demo-target"></select></label><label>Speed<select id="demo-speed"></select></label>
+    <p id="demo-status" role="status">Choose an effect and press Play.</p>
+    <div class="row"><button id="play-effect" class="primary">Play</button><button id="next-effect">Next effect</button></div>
+    <p class="caption">The original black-and-white card transitions. Reduce motion also applies here.</p>
+  </dialog>
+  <dialog id="restart-dialog" aria-labelledby="restart-title">
+    <h1 id="restart-title">Start again?</h1><p>This replaces the saved game on this device.</p>
+    <div class="row"><form method="dialog"><button>Keep playing</button></form><button id="confirm-restart">Start again</button></div>
+  </dialog>
+<dialog id="guide" aria-labelledby="guide-title"><button class="close" data-close aria-label="Close guide">×</button><h1 id="guide-title">You have time to think.</h1><p>Tap to read the next line. The arrow takes you back.</p><p>Choose a decision to act. The box marked … lets an hour pass. Reading, looking at the log, and closing the app take no time.</p><p>Tap the latest message to open the log. Back returns you to where you were.</p><div id="learned-guide"></div><button class="primary full" data-close>Return</button></dialog>
+  <dialog id="attribute-dialog" aria-labelledby="attribute-title"><button class="close" data-close aria-label="Close attribute explanation">×</button><h1 id="attribute-title"></h1><p id="attribute-text"></p><button class="full" data-close>Return</button></dialog>
+
+  <dialog id="offer-dialog" aria-labelledby="offer-title"><button class="close" data-close aria-label="Close decision details">×</button><h1 id="offer-title"></h1><p id="offer-description"></p><p id="offer-requirement"></p><div id="offer-effects"></div><div class="row"><button data-close>Keep reading</button><button id="offer-choose" class="primary">Choose</button></div></dialog>
+  <dialog id="changes-dialog" aria-labelledby="changes-title"><button class="close" data-close aria-label="Close consequences">×</button><h1 id="changes-title">What changed</h1><div id="change-list"></div><button data-close>Return to card</button></dialog>
+  <div id="toast" role="status" hidden></div><span id="save-status" class="sr-only" role="status"></span>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>
