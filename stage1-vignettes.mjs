@@ -294,7 +294,7 @@ export const ACTION_VIGNETTES = {
     "you chew longer than you want to.",
     "cold greens. another forkful.",
     "you eat what you made. all of it.",
-    "no pleasure in the taste. less hunger afterward.",
+    "no pleasure in the taste. one better habit.",
     "you add nothing. finish anyway.",
     "the last beans collected one by one.",
     "you rinse the bowl as soon as you finish.",
@@ -334,7 +334,7 @@ export const ACTION_VIGNETTES = {
     "no sugar. you already knew.",
     "a full bowl. a clean bowl.",
     "you swallow the last cooled mouthful.",
-    "breakfast finished. no longer quite so empty.",
+    "breakfast finished. the bowl rinsed.",
     "you rinse the spoon. enough to continue."
   ],
   "talk_jim": [

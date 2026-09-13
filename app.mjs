@@ -10,6 +10,7 @@ const canvas = $('card'), context = canvas.getContext('2d', { willReadFrequently
 const audio = new StackAudio(), icons = {}, artwork = {};
 const SAVE_KEY = 'alignment.stage1.v1', UI_KEY = 'alignment.stage1.cards.v2';
 const MIGRATION_BACKUP_KEY = 'alignment.stage1.v1.backup-before-stage1-rewrite';
+const RHYTHM_BACKUP_KEY = 'alignment.stage1.v2.backup-before-metaphysical-rhythm';
 let state, view, screen='main', sceneIndex=0, sceneSource='intro', sceneIntroIndex=0, logIndex=0, readPage=0, systemId='local', systemPage=0, navigation=[], choiceShown=false, introRefusal=false;
 let width, height, currentPixels, currentLayout, busy=false, animationId=0, demoId=0, pulse=true, saveFailed=false, toastTimer, migrationBackupPending=null;
 let storage;
@@ -18,12 +19,12 @@ let prefs;
 try { prefs=JSON.parse(storage.getItem('alignment.preferences'))||{}; } catch {prefs={};}
 prefs={sound:prefs.sound!==false,reduceMotion:prefs.reduceMotion===true||matchMedia('(prefers-reduced-motion: reduce)').matches,largeText:prefs.largeText===true,transition:EFFECTS.includes(prefs.transition)&&prefs.transition!=='flash'?prefs.transition:'authored',speed:SPEEDS[prefs.speed]?prefs.speed:'normal'};
 audio.enabled=prefs.sound;
-const names={rapture:'Rapture',disquiet:'Disquiet',choice:'Choice',hunger:'Hunger',money:'$$$',food:'Food','skills.coding':'Coding','skills.math':'Math','skills.finance':'Finance','skills.social':'Social','skills.practical':'Practical','relationships.person':'PERSON','relationships.friend':'Your friend','relationships.town':'Town','relationships.jim':'Gringo Jim','relationships.ethan':'Ethan','relationships.wendy':'Wendy','relationships.madame':'MADAME','relationships.priestess':'PRIESTESS','relationships.fool':'FOOL','relationships.sun':'SUN'};
-const shortNames={rapture:'R',disquiet:'D',choice:'C',hunger:'H',money:'$',food:'Food'};
-const attributes=ATTRIBUTE_KEYS;
+const names={rapture:'Rapture',disquiet:'Disquiet',choice:'Choice',hunger:'Hunger',lifestyle:'Lifestyle',resets:'Resets',money:'$$$',food:'Food','skills.coding':'Coding','skills.math':'Math','skills.finance':'Finance','skills.social':'Social','skills.practical':'Practical','relationships.person':'PERSON','relationships.friend':'Your friend','relationships.town':'Town','relationships.jim':'Gringo Jim','relationships.ethan':'Ethan','relationships.wendy':'Wendy','relationships.madame':'MADAME','relationships.priestess':'PRIESTESS','relationships.fool':'FOOL','relationships.sun':'SUN'};
+const shortNames={rapture:'R',disquiet:'D',choice:'C',hunger:'H',lifestyle:'L',resets:'Resets',money:'$',food:'Food'};
+const attributes=[...new Set([...ATTRIBUTE_KEYS,'lifestyle'])];
 const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
 const statFmt=n=>n>0&&n<.1?'<0.1':fmt(Math.floor(n*10+1e-8)/10);
-const attributeValue=stat=>stat==='money'?state.money:state.stats[stat];
+const attributeValue=stat=>Number(stat==='money'?state.money:stat==='lifestyle'?(view?.lifestyle??state.lifestyle??state.stats[stat]??0):state.stats[stat]??state[stat]??0);
 const attributeFmt=stat=>stat==='money'?attributeValue(stat).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):statFmt(attributeValue(stat));
 const signed=n=>`${n>0?'+':n<0?'−':''}${fmt(Math.abs(n))}`;
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -32,7 +33,7 @@ const clockText=hours=>{const d=gameDate(hours);return `${d.date} · ${String(d.
 const position=()=>({screen,sceneIndex,sceneSource,sceneIntroIndex,introRefusal,logIndex,readPage,systemId,systemPage});
 function restorePosition(p){screen=p.screen;sceneIndex=p.sceneIndex||0;sceneSource=p.sceneSource||'outcome';sceneIntroIndex=Math.min(p.sceneIntroIndex||0,INTRO.length-1);introRefusal=p.introRefusal===true;logIndex=p.logIndex||0;readPage=p.readPage||0;systemId=p.systemId||'local';systemPage=p.systemPage||0;}
 function pushScreen(next){navigation.push(position());screen=next;readPage=0;}
-function persist(){try{if(migrationBackupPending!==null){storage.setItem(MIGRATION_BACKUP_KEY,migrationBackupPending);migrationBackupPending=null;}storage.setItem(SAVE_KEY,serializeGame(state));storage.setItem(UI_KEY,JSON.stringify({...position(),navigation,choiceShown,seed:state.seed,turn:state.turn,phase:state.phase,introIndex:state.introIndex}));saveFailed=false;}catch{saveFailed=true;}$('save-status').textContent=saveFailed?'Save unavailable':'Saved on this device';}
+function persist(){try{if(migrationBackupPending!==null){storage.setItem(migrationBackupPending.key,migrationBackupPending.raw);migrationBackupPending=null;}storage.setItem(SAVE_KEY,serializeGame(state));storage.setItem(UI_KEY,JSON.stringify({...position(),navigation,choiceShown,seed:state.seed,turn:state.turn,phase:state.phase,introIndex:state.introIndex}));saveFailed=false;}catch{saveFailed=true;}$('save-status').textContent=saveFailed?'Save unavailable':'Saved on this device';}
 function savePrefs(){try{storage.setItem('alignment.preferences',JSON.stringify(prefs));}catch{}document.documentElement.classList.toggle('reduce-motion',prefs.reduceMotion);}
 function toast(message){$('toast').textContent=prose(message);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4200);}
 
@@ -61,32 +62,37 @@ function sceneData(){
   if(sceneSource==='intro'&&source.feedingSound)return {title:source.title,lines:[source.text,'',source.afterFeeding,source.titleText],kinds:['line','feeding','line','title'],art:source.art};
   const lines=String(source?.text||view.text).split(/\n+/).filter(Boolean).flatMap(paragraph=>paragraph.trim().startsWith('*')?[paragraph]:paragraph.split(/(?<=[.!?])\s+(?=[A-Z“])/).filter(Boolean));
   const kinds=lines.map(line=>line.trim().startsWith('**')?'sound':'line');
+  if(sceneSource==='outcome'&&view.interlude&&source?.title){if(lines[0]?.replaceAll('*','').trim()!==source.title.trim()){lines.unshift(source.title);kinds.unshift('intertitle');}else kinds[0]='intertitle';}
   if(sceneSource==='intro'&&source.prompt){lines.push(source.prompt);kinds.push('prompt');}
   return {title:source?.title||view.title,lines:lines.length?lines:['...'],kinds,art:source?.art,artFromLine:source?.artFromLine||0};
 }
 function drawStats(ctx,layout){
-  text(ctx,view.calendar.date,10,7,11);
-  const sw=(width-48)/attributes.length;
-  attributes.forEach((stat,i)=>{if(!view.revealedStats.includes(stat))return;const x=8+i*sw;
+  const rhythm=view.rhythm?.label||'',resets=Number(view.resets??state.resets??0),visible=view.revealedStats.filter(stat=>attributes.includes(stat)||stat==='lifestyle');
+  text(ctx,shortLine(ctx,view.calendar.date,width*.36,10),10,7,10);
+  if(rhythm)text(ctx,rhythm,width*.53,7,10,true,'center');
+  text(ctx,`resets ${resets}`,width-45,7,10,false,'right');
+  const sw=(width-48)/Math.max(1,visible.length);
+  visible.forEach((stat,i)=>{const x=8+i*sw;
     const amount=attributeFmt(stat),size=Math.min(12,(sw-4)/(amount.length*.61));
-    text(ctx,names[stat],x,29,width<350?9:10);text(ctx,amount,x,44,size);
+    text(ctx,names[stat]||stat,x,29,Math.min(width<350?9:10,(sw-3)/((names[stat]||stat).length*.61)));text(ctx,amount,x,44,size);
     layout.statTargets[stat]={x:x+10,y:45};layout.statRects[stat]={x:Math.floor(x),y:25,w:Math.ceil(sw-2),h:36};
     control(layout,`${stat==='money'?'Money in dollars':names[stat]} ${amount}. about ${names[stat]}`,x,24,sw-2,40,'attribute:'+stat);
   });
   quietButton(ctx,layout,'· ·',width-38,0,38,64,'settings','settings');
   line(ctx,0,64,width,65);
+  layout.rhythm=view.rhythm||null;layout.resets=resets;
 }
 function drawScene(ctx,layout){
   const data=sceneData();sceneIndex=Math.max(0,Math.min(sceneIndex,data.lines.length-1));
-  const current=data.lines[sceneIndex],kind=data.kinds?.[sceneIndex]||'line',emphasis=current.startsWith('*')&&!current.startsWith('**'),font=kind==='title'?(width<350?15:17):prefs.largeText?19:16;
+  const current=data.lines[sceneIndex],kind=data.kinds?.[sceneIndex]||'line',emphasis=current.startsWith('*')&&!current.startsWith('**'),font=kind==='intertitle'?(width<350?23:27):kind==='title'?(width<350?15:17):prefs.largeText?19:16;
   const art=kind!=='feeding'&&kind!=='title'&&sceneIndex>=(data.artFromLine||0)?data.art:null,beside=art&&width>height;
-  const prompt=kind==='prompt',bold=prompt||kind==='sound'||kind==='title',rows=wrapText(ctx,current.replaceAll('*',''),beside?Math.floor(width*.48)-52:width-52,font,bold),leading=font+9;
+  const prompt=kind==='prompt',centered=kind==='title'||kind==='intertitle',bold=prompt||kind==='sound'||centered,rows=wrapText(ctx,current.replaceAll('*',''),beside?Math.floor(width*.48)-52:width-52,font,bold),leading=font+9;
   const y=art?(beside?Math.max(86,Math.floor(65+(height-140-rows.length*leading)/2)):92):Math.max(86,Math.floor(65+(height-160)*.43-rows.length*leading/2));
   if(art){
     const top=beside?86:y+rows.length*leading+18,left=beside?Math.floor(width*.48):26;
     layout.art=drawArtwork(ctx,art,left,top,width-left-26,height-89-top);
   }
-  if(kind!=='feeding')rows.forEach((row,i)=>text(ctx,row,kind==='title'?width/2:26,y+i*leading,font,bold,kind==='title'?'center':'left',true,emphasis));
+  if(kind!=='feeding')rows.forEach((row,i)=>text(ctx,row,centered?width/2:26,y+i*leading,font,bold,centered?'center':'left',true,emphasis));
   layout.text=kind==='feeding'?'[sound of feeding, like a garbage disposal]':current.replaceAll('*','');layout.cardTitle=data.title;layout.scene={index:sceneIndex,count:data.lines.length,lines:data.lines,source:sceneSource,kind,text:layout.text,bold,italic:emphasis,prompt:prompt?current:null,refusal:introRefusal};
   const final=sceneIndex===data.lines.length-1;
   if(!final){control(layout,'read the next line',1,66,width-2,height-139,'next-line');if(kind!=='feeding')quietButton(ctx,layout,'→',width-65,height-65,48,48,'next-line','read the next line');}
@@ -95,13 +101,14 @@ function drawScene(ctx,layout){
   }else if(sceneSource==='intro'){
     const label=kind==='title'?'Begin':INTRO[sceneIntroIndex].button,bw=Math.min(width-86,Math.max(164,label.length*8+20));
     button(ctx,layout,shortLine(ctx,label,bw-16,13),width-bw-18,height-67,bw,46,'continue',true);
-  }else if(sceneSource==='outcome'&&state.phase==='dream')button(ctx,layout,'Sleep',width-160,height-67,142,46,'sleep',true);
+  }else if(sceneSource==='outcome'&&view.interlude)button(ctx,layout,'Continue',width-160,height-67,142,46,'continue_interlude',true);
+  else if(sceneSource==='outcome'&&state.phase==='dream')button(ctx,layout,'Sleep',width-160,height-67,142,46,'sleep',true);
   else if(sceneSource==='outcome'&&state.phase==='complete')button(ctx,layout,'BEGIN STAGE 2',width-202,height-67,184,46,'begin_stage2',true);
   else button(ctx,layout,sceneSource==='entry'?'back to log':state.phase==='playing'?'return':'close',width-160,height-67,142,46,'close-scene');
   if(kind!=='feeding'&&(sceneIndex>0||introRefusal||sceneSource!=='intro'||sceneIntroIndex>0))quietButton(ctx,layout,'←',12,height-65,48,48,'back','previous line or back');
   if(sceneSource==='intro'&&sceneIntroIndex===0&&sceneIndex===0&&!introRefusal)text(ctx,'tap to read',26,height-49,10);
 }
-function unlockCue(entry){const cues={local:'The tree icon now opens your friend’s clearing.',fintech:'The computer icon now opens your work.',social:'The people icon now opens your relationships.'};return (entry?.unlockedSystems||[]).map(id=>cues[id]).filter(Boolean).join(' ');}
+function unlockCue(entry){const cues={local:'Home is open. Look around. Set an intention.',fintech:'Work is open. Think about what comes next.',social:'Town is open. Think about who to see.'};return (entry?.unlockedSystems||[]).map(id=>cues[id]).filter(Boolean).join(' ');}
 function latestMessage(){return [unlockCue(state.lastOutcome),String(state.lastOutcome?.text||view.text||'').replaceAll('*','').replace(/\s+/g,' ').trim()].filter(Boolean).join(' ');}
 const logHeight=()=>height<500?40:60;
 function drawLogStrip(ctx,layout){
@@ -120,17 +127,26 @@ function drawSystems(ctx,layout){
 }
 function drawOffer(ctx,layout,offer,x,y,w,h,wait=false){
   box(ctx,x,y,w,h);
-  if(offer.thorny&&view.revealedStats.includes('rapture'))for(let yy=y+8;yy<y+h-8;yy+=13){ctx.fillStyle='#000';ctx.beginPath();ctx.moveTo(x,yy);ctx.lineTo(x+5,yy+3);ctx.lineTo(x,yy+7);ctx.fill();}
-  if(offer.blinking&&view.revealedStats.includes('rapture')&&(pulse||prefs.reduceMotion)){ctx.strokeStyle='#000';ctx.strokeRect(x+3.5,y+3.5,w-7,h-7);}
-  const font=prefs.largeText?15:13,rows=wrapText(ctx,wait?'...':offer.label,w-23,font,true),choiceVisible=view.revealedStats.includes('choice');
-  const maxRows=Math.max(2,Math.floor((h-(choiceVisible?31:16))/(font+4))),shown=rows.slice(0,maxRows);
+  const intention=offer.category==='intention'||offer.id.startsWith('intent:'),choiceVisible=!intention&&view.revealedStats.includes('choice'),footer=choiceVisible||intention;
+  if(intention&&offer.selected){ctx.strokeStyle='#000';ctx.strokeRect(x+3.5,y+3.5,w-7,h-7);}
+  if(!intention&&offer.thorny&&view.revealedStats.includes('rapture')){
+    ctx.fillStyle='#000';
+    for(let yy=y+12;yy<y+h-7;yy+=17){for(const side of [-1,1]){const edge=side<0?x:x+w;ctx.beginPath();ctx.moveTo(edge,yy-5);ctx.lineTo(edge+side*5,yy+1);ctx.lineTo(edge,yy+5);ctx.lineTo(edge-side*4,yy);ctx.closePath();ctx.fill();}}
+    for(let xx=x+15;xx<x+w-8;xx+=19){for(const side of [-1,1]){const edge=side<0?y:y+h;ctx.beginPath();ctx.moveTo(xx-4,edge);ctx.lineTo(xx+1,edge+side*5);ctx.lineTo(xx+5,edge);ctx.closePath();ctx.fill();}}
+  }
+  if(!intention&&(offer.blinking||offer.appealing)&&view.revealedStats.includes('rapture')&&(pulse||prefs.reduceMotion)){
+    for(const [cx,cy] of [[x+9,y+9],[x+w-9,y+h-9]]){ctx.fillStyle='#000';ctx.fillRect(cx-4,cy,9,1);ctx.fillRect(cx,cy-4,1,9);ctx.fillRect(cx-1,cy-1,3,3);}
+  }
+  const font=prefs.largeText?15:13,rows=wrapText(ctx,wait?'...':offer.label,w-27,font,true);
+  const maxRows=Math.max(2,Math.floor((h-(footer?31:16))/(font+4))),shown=rows.slice(0,maxRows);
   if(rows.length>maxRows)shown[maxRows-1]=shortLine(ctx,shown[maxRows-1]+'…',w-23,font);
-  const y0=y+Math.max(12,(h-shown.length*(font+4)-(choiceVisible?16:0))/2);
+  const y0=y+Math.max(12,(h-shown.length*(font+4)-(footer?16:0))/2);
   shown.forEach((row,i)=>text(ctx,row,x+w/2,y0+i*(font+4),wait?23:font,true,'center',true));
   if(choiceVisible)text(ctx,offer.available?`${offer.requirement} Choice`:offer.requirement>state.stats.choice?`Needs ${offer.requirement} Choice`:shortLine(ctx,offer.lockedReason.replace('You need','Needs').replace(/\.$/,''),w-14,width<350?9:10),x+w/2,y+h-19,width<350?9:10,!offer.available,'center');
+  if(intention)text(ctx,offer.selected?'in mind':'set intention',x+w/2,y+h-19,width<350?9:10,offer.selected,'center');
   if(!offer.available)dither(ctx,x+2,y+2,w-4,h-4);
-  const detail=`${offer.label}. ${offer.description} ${fmt(offer.duration)} hours.${choiceVisible?` Requires ${offer.requirement} Choice.`:''}${offer.available?'':' Unavailable.'}`;
-  control(layout,detail,x,y,w,h,offer.id,{available:offer.available,offerId:offer.id});
+  const detail=`${offer.label}. ${offer.description} ${intention?(offer.selected?'Current intention. ':'')+'Setting an intention takes no time.':`${fmt(offer.duration)} hours.${choiceVisible?` Requires ${offer.requirement} Choice.`:''}`}${offer.available?'':' Unavailable.'}`;
+  control(layout,detail,x,y,w,h,offer.id,{available:offer.available,offerId:offer.id,intention,selected:offer.selected===true,thorny:!intention&&offer.thorny===true,appealing:!intention&&(offer.blinking||offer.appealing)===true});
 }
 function crisisWarning(){return /will kill you both/i.test(view.offers.find(o=>o.id==='crisis_leave')?.description||'')?'Leaving now will kill you both.':'Your friend’s pain is yours. You need help.';}
 function storyReading(ctx,event){
@@ -162,7 +178,8 @@ function drawMain(ctx,layout){
   drawLogStrip(ctx,layout);drawSystems(ctx,layout);layout.text=latestMessage();
   const margin=18,gap=14,bw=Math.floor((width-margin*2-gap)/2),bh=Math.max(72,Math.min(108,Math.floor(height*.145))),bottom=height-23,startY=bottom-bh*2-gap;
   if(state.phase==='playing'){
-    const offers=[...view.offers,view.wait].filter(Boolean);offers.forEach((offer,i)=>drawOffer(ctx,layout,offer,margin+(i%2)*(bw+gap),startY+Math.floor(i/2)*(bh+gap),bw,bh,offer.id==='wait'));
+    const offers=[...view.offers,view.wait].filter(Boolean);offers.forEach((offer,i)=>drawOffer(ctx,layout,offer,offers.length===1?margin:margin+(i%2)*(bw+gap),offers.length===1?bottom-bh:startY+Math.floor(i/2)*(bh+gap),offers.length===1?width-margin*2:bw,bh,offer.id==='wait'));
+    if(view.rhythm?.scheduledWork&&height>=500)text(ctx,'your shift is due.',20,(offers.length===1?bottom-bh:startY)-40,12,true);
     if(view.crisis&&height>=500){const message=crisisWarning();const rows=wrapText(ctx,message,width-40,12,true);rows.forEach((row,i)=>text(ctx,row,20,startY-rows.length*16-20+i*16,12,true));}
     else if(!view.crisis&&height>=500&&view.revealedStats.includes('choice')&&view.offers.some(o=>!o.available&&o.requirement>state.stats.choice)){const rows=wrapText(ctx,'You want to. You cannot make yourself.',width-40,12);rows.forEach((row,i)=>text(ctx,row,20,startY-rows.length*16-20+i*16,12));}
   }else{
@@ -193,29 +210,29 @@ function drawSystem(ctx,layout){
   const system=view.systems.find(s=>s.id===systemId);if(!system?.unlocked){screen='main';drawMain(ctx,layout);return;}
   drawLogStrip(ctx,layout);header(ctx,layout,system.label,logHeight());const font=prefs.largeText?15:12;
   const prose=system.text,rows=wrapText(ctx,prose,width-40,font);
-  const bh=height<500?64:74,perPage=height<500?2:height<650?4:6,gap=10,bw=Math.floor((width-50)/2),actionHeight=Math.ceil(perPage/2)*(bh+gap)-gap,actionY=height-actionHeight-63;
+  const bh=height<500?64:74,perPage=height<500?2:height<650?4:6,gap=10,bw=Math.floor((width-50)/2);
+  const total=Math.max(1,Math.ceil(system.actions.length/perPage));systemPage=Math.min(systemPage,total-1);
+  const shown=system.actions.slice(systemPage*perPage,(systemPage+1)*perPage),actionHeight=Math.max(1,Math.ceil(shown.length/2))*(bh+gap)-gap,actionY=height-actionHeight-63;
   const maxRows=Math.max(2,Math.floor((actionY-156-logHeight())/(font+6))); if(rows.length>maxRows)rows[maxRows-1]=shortLine(ctx,rows[maxRows-1],width-50,font)+'…';
   rows.slice(0,maxRows).forEach((row,i)=>text(ctx,shortLine(ctx,row,width-40,font),20,143+logHeight()+i*(font+6),font));
-  const total=Math.max(1,Math.ceil(system.actions.length/perPage));systemPage=Math.min(systemPage,total-1);
-  system.actions.slice(systemPage*perPage,(systemPage+1)*perPage).forEach((o,i)=>drawOffer(ctx,layout,o,20+(i%2)*(bw+10),actionY+Math.floor(i/2)*(bh+gap),bw,bh));
-  if(systemPage>0)quietButton(ctx,layout,'←',14,height-56,48,44,'system-previous','Previous actions');
-  if(systemPage<total-1)quietButton(ctx,layout,'More →',width-106,height-56,92,44,'system-next','More actions');
-  text(ctx,`$${fmt(state.money)} · ${fmt(state.food)} food`,width/2,height-41,11,false,'center');
+  control(layout,'Read about '+system.label,18,139+logHeight(),width-36,Math.max(28,actionY-148-logHeight()),'system-details');
+  shown.forEach((o,i)=>drawOffer(ctx,layout,o,20+(i%2)*(bw+10),actionY+Math.floor(i/2)*(bh+gap),bw,bh));
+  if(systemPage>0)quietButton(ctx,layout,'←',14,height-56,48,44,'system-previous','Previous intentions');
+  if(systemPage<total-1)quietButton(ctx,layout,'More →',width-106,height-56,92,44,'system-next','More intentions');
+  text(ctx,'looking takes no time',width/2,height-41,10,false,'center');
   layout.text=system.label+'. '+prose;layout.page=systemPage;layout.pageCount=total;
 }
 function inspectVisibleSystem(){if(screen!=='system')return;const system=getView(state).systems.find(s=>s.id===systemId),perPage=height<500?2:height<650?4:6;const max=Math.max(0,Math.ceil((system?.actions.length||0)/perPage)-1);systemPage=Math.min(systemPage,max);state=inspectSystem(state,systemId,system?.actions.slice(systemPage*perPage,(systemPage+1)*perPage).map(o=>o.id)||[]);}
 function drawGame(){
   inspectVisibleSystem();view=getView(state);
-  if(view.storyEvent&&screen==='system'){screen='main';readPage=0;}
+  if(view.interlude&&screen==='main'){sceneSource='outcome';sceneIndex=0;screen='scene';}
   const ctx=document.createElement('canvas').getContext('2d',{willReadFrequently:true});ctx.canvas.width=width;ctx.canvas.height=height;box(ctx,0,0,width,height);
-  const pageSize=height<500?2:height<650?4:6,eventNarrative=screen==='main'&&view.storyEvent&&readPage<storyReading(ctx,view.storyEvent).narrativePages;
-  const visibleOptions=screen==='main'&&!eventNarrative?[...view.offers,view.wait].filter(Boolean):screen==='system'?(view.systems.find(s=>s.id===systemId)?.actions||[]).slice(systemPage*pageSize,(systemPage+1)*pageSize):[];
-  if(visibleOptions.some(o=>!o.available&&o.requirement>state.stats.choice))choiceShown=true;view.revealedStats=view.revealedStats.filter(stat=>stat!=='choice'||choiceShown);
+  choiceShown=view.revealedStats.includes('choice');
   const layout={buttons:[],page:0,pageCount:1,statTargets:{},statRects:{},revealedStats:[...view.revealedStats],cardTitle:'Alignment',text:'',scene:null};
   const activeScene=screen==='scene'?sceneData():null;if(activeScene)sceneIndex=Math.max(0,Math.min(sceneIndex,activeScene.lines.length-1));
   const sceneKind=activeScene?.kinds?.[sceneIndex];
   if(sceneKind!=='feeding'&&sceneKind!=='title')drawStats(ctx,layout);
-  if(screen==='scene')drawScene(ctx,layout);else if(screen==='log')drawLog(ctx,layout);else if(screen==='system')drawSystem(ctx,layout);else if(screen==='progress')drawReading(ctx,layout,'Your life',view.milestones.map(m=>`${m.done?'[x]':'[ ]'} ${m.label}\n${m.detail}`).join('\n\n'));else drawMain(ctx,layout);
+  if(screen==='scene')drawScene(ctx,layout);else if(screen==='log')drawLog(ctx,layout);else if(screen==='system')drawSystem(ctx,layout);else if(screen==='system-detail'){const system=view.systems.find(s=>s.id===systemId);drawReading(ctx,layout,system?.label||'Your life',[system?.text,system?.hint,'Setting an intention changes what you look for next. It takes no time.'].filter(Boolean).join('\n\n'));}else if(screen==='progress')drawReading(ctx,layout,'Your life',view.milestones.map(m=>`${m.done?'[x]':'[ ]'} ${m.label}\n${m.detail}`).join('\n\n'));else drawMain(ctx,layout);
   return {pixels:monochrome(ctx,width,height),layout};
 }
 function paint(pixels,ctx=context,w=width,h=height){ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer,pixels.byteOffset,pixels.byteLength),w,h),0,0);}
@@ -223,19 +240,21 @@ function allOffers(){return [...view.offers,view.wait,...view.systems.flatMap(s=
 function installControls(layout,focusAction){
   $('controls').replaceChildren();
   for(const b of layout.buttons){const el=document.createElement('button');el.textContent=prose(b.label);el.setAttribute('aria-label',prose(b.label));el.dataset.action=b.action;el.setAttribute('aria-disabled',String(b.available===false));
+    if(b.intention)el.setAttribute('aria-pressed',String(b.selected));
+    if(b.thorny)el.dataset.thorny='true';if(b.appealing)el.dataset.appealing='true';
     if(b.action==='settings')el.id='settings-button';if(b.action==='continue')el.id='continue-intro';
     Object.assign(el.style,{left:`${b.x}px`,top:`${b.y}px`,width:`${b.w}px`,height:`${Math.min(b.h,height-b.y)}px`});
     let timer,held=false;
     if(b.offerId){el.onpointerdown=()=>{held=false;timer=setTimeout(()=>{held=true;inspectOffer(b.offerId);},550);};el.onpointerup=el.onpointercancel=el.onpointerleave=()=>clearTimeout(timer);el.oncontextmenu=e=>{e.preventDefault();held=true;inspectOffer(b.offerId);};}
     el.onclick=()=>{if(held){held=false;return;}activate(b.action);};$('controls').append(el);if(focusAction===b.action)el.focus({preventScroll:true});
   }
-  const narration=layout.text+' '+view.calendar.date+'. '+view.revealedStats.map(stat=>`${stat==='money'?'money in dollars':prose(names[stat])} ${attributeFmt(stat)}`).join('. ');
+  const narration=layout.text+' '+view.calendar.date+'. '+(view.rhythm?.label?view.rhythm.label+'. ':'')+`Resets ${view.resets??state.resets??0}. `+view.revealedStats.map(stat=>`${stat==='money'?'money in dollars':prose(names[stat])} ${attributeFmt(stat)}`).join('. ');
   if($('narration').textContent!==narration)$('narration').textContent=narration;
 }
 function redraw(focusAction){const result=drawGame();currentPixels=result.pixels;currentLayout=result.layout;paint(currentPixels);installControls(currentLayout,focusAction);}
 function resize(){animationId++;busy=false;const aw=document.documentElement.clientWidth,ah=innerHeight,landscape=aw>ah&&aw>600;width=Math.floor(Math.min(landscape?700:480,aw-(aw>540?24:0)));height=Math.floor(Math.max(360,Math.min(840,ah-(aw>540?24:0))));canvas.width=width;canvas.height=height;$('stack').style.width=`${width}px`;$('stack').style.height=`${height}px`;redraw();persist();}
 function animate(from,to,effect,duration,onFrame,isCurrent){if(prefs.reduceMotion||effect==='plain'){onFrame(to);return Promise.resolve();}const w=width,h=height;return new Promise(resolve=>{let start,previous=-Infinity;const output=new Uint32Array(to.length);const tick=now=>{if(!isCurrent()||w!==width||h!==height){resolve();return;}start??=now;const p=Math.min(1,(now-start)/duration);if(now-previous>=1000/30||p===1){onFrame(composeFrame(from,to,w,h,p,effect,output));previous=now;}if(p===1)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});}
-function effectFor(action){if(action==='next-line'||action==='continue'||action==='close-scene')return 'dissolve';if(action==='back')return 'wipe right';if(action==='open-log'||action.startsWith('system:'))return 'push left';if(/feed/.test(action))return 'dissolve';if(/work|study|code|course|portfolio|model/.test(action))return 'venetian blinds';if(action==='wait')return 'checkerboard';return 'dissolve';}
+function effectFor(action){if(action==='next-line'||action==='continue'||action==='continue_interlude'||action==='close-scene')return 'dissolve';if(action.startsWith('intent:'))return 'plain';if(action==='back')return 'wipe right';if(action==='open-log'||action.startsWith('system:'))return 'push left';if(/feed/.test(action))return 'dissolve';if(/work|study|code|course|portfolio|model/.test(action))return 'venetian blinds';if(action==='wait')return 'checkerboard';return 'dissolve';}
 
 async function animateNumbers(changes,from,oldLayout,action,id){if(prefs.reduceMotion||!changes.length)return;const entries=changes.filter(c=>oldLayout.statTargets[c.stat]&&Math.abs(c.amount)>=.1).slice(0,8);if(!entries.length)return;const w=width,h=height,scratch=document.createElement('canvas');scratch.width=w;scratch.height=h;const ctx=scratch.getContext('2d',{willReadFrequently:true});await new Promise(resolve=>{let start;const tick=now=>{if(id!==animationId||w!==width||h!==height){resolve();return;}start??=now;const p=Math.min(1,(now-start)/440);paint(from,ctx,w,h);entries.forEach((c,i)=>{const source=oldLayout.buttons.find(b=>b.action===c.source)||oldLayout.buttons.find(b=>b.action===action),target=oldLayout.statTargets[c.stat];if(!source)return;let a={x:source.x+source.w/2-20,y:source.y+12+(i%2)*14},b=target;if(c.amount<0)[a,b]=[b,a];const q=p*p*(3-2*p),x=Math.round(a.x+(b.x-a.x)*q),y=Math.round(a.y+(b.y-a.y)*q),label=`${signed(c.amount)} ${shortNames[c.stat]}`;box(ctx,x-3,y-2,label.length*8+6,19);text(ctx,label,x,y,12,true);});paint(monochrome(ctx,w,h));if(p>=1)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});}
 function backPosition(){
@@ -263,20 +282,24 @@ async function change(action){
   else if(action==='read-previous')readPage--;
   else if(action==='system-next')systemPage++;
   else if(action==='system-previous')systemPage--;
+  else if(action==='system-details')pushScreen('system-detail');
   else if(action==='progress')pushScreen('progress');
   else if(action.startsWith('system:')){pushScreen('system');systemId=action.slice(7);systemPage=0;inspectVisibleSystem();}
   else if(action==='read-ending'){pushScreen('scene');sceneSource='outcome';sceneIndex=0;}
   else if(action==='continue'&&sceneIntroIndex<state.introIndex){sceneIntroIndex++;sceneIndex=0;introRefusal=false;if(sceneIntroIndex>=INTRO.length)screen='main';}
   else{
     const result=choose(state,action);if(!result.ok){busy=false;redraw(action);toast(result.error);return;}state=result.state;changes=result.changes;readPage=0;
-    if(action==='continue'){sceneIndex=0;introRefusal=false;sceneIntroIndex=state.introIndex;screen=state.phase==='intro'?'scene':'main';}
-    else if(result.outcome?.presentation==='scene'||state.phase!=='playing')enterOutcome();
+    const nextView=getView(state);
+    if(action==='continue'){sceneIndex=0;introRefusal=false;sceneIntroIndex=state.introIndex;screen=state.phase==='intro'?'scene':'main';if(state.phase!=='intro'&&nextView.interlude)enterOutcome();}
+    else if(action==='continue_interlude'){if(nextView.interlude||state.phase!=='playing')enterOutcome();else{screen='main';sceneIndex=readPage=0;navigation=[];}}
+    else if(action.startsWith('intent:')){screen='system';}
+    else if(nextView.interlude||result.outcome?.presentation==='scene'||state.phase!=='playing')enterOutcome();
     else if(state.crisis){screen='main';navigation=[];}
   }
   persist();
   try{
     await animateNumbers(changes,from,oldLayout,action,id);if(id!==animationId)return;
-    const result=drawGame();currentLayout=result.layout;const newcomers=result.layout.revealedStats.filter(stat=>!oldLayout.revealedStats.includes(stat));
+    const result=drawGame();currentLayout=result.layout;const newcomers=result.layout.revealedStats.filter(stat=>!oldLayout.revealedStats.includes(stat)&&result.layout.statRects[stat]);
     let target=result.pixels;
     if(newcomers.length&&!prefs.reduceMotion){target=result.pixels.slice();for(const stat of newcomers){const r=result.layout.statRects[stat];for(let y=r.y;y<r.y+r.h;y++)target.fill(0xffffffff,y*width+r.x,y*width+r.x+r.w);}}
     const effect=prefs.transition==='authored'?effectFor(action):prefs.transition;
@@ -287,13 +310,13 @@ async function change(action){
   }finally{if(id===animationId){busy=false;installControls(currentLayout);persist();}}
 }
 function effectRows(changes){const visible=changes?.filter(c=>names[c.stat]&&Math.abs(c.amount)>=.001&&(!attributes.includes(c.stat)||view.revealedStats.includes(c.stat)))||[];return visible.map(c=>`<div class="effect-row"><b>${esc(signed(c.amount))} ${esc(names[c.stat])}</b><small>${esc(c.label||'')}</small></div>`).join('');}
-function inspectOffer(id){if(busy)return;const offer=allOffers().find(o=>o.id===id);if(!offer)return;$('offer-title').textContent=offer.label;$('offer-description').textContent=prose(offer.description);const learnedChoice=view.revealedStats.includes('choice');$('offer-requirement').textContent=`${fmt(offer.duration)} hours${learnedChoice?` · Requires ${offer.requirement} Choice`:''}.${!offer.available?' '+offer.lockedReason:''}`;
-  $('offer-effects').innerHTML=(offer.uncertain?'<p>The outcome is uncertain.</p>':'')+(offer.blinking&&view.revealedStats.includes('rapture')?'<p>This is calling to you. Letting it pass costs Rapture.</p>':'')+effectRows(offer.preview);$('offer-choose').disabled=!offer.available;$('offer-choose').onclick=()=>{$('offer-dialog').close();activate(id);};$('offer-dialog').showModal();}
+function inspectOffer(id){if(busy)return;const offer=allOffers().find(o=>o.id===id);if(!offer)return;$('offer-title').textContent=offer.label;$('offer-description').textContent=prose(offer.description);const learnedChoice=view.revealedStats.includes('choice'),intention=offer.category==='intention'||id.startsWith('intent:');$('offer-requirement').textContent=intention?'No time passes. This changes what you look for in later opportunities.':`${fmt(offer.duration)} hours${learnedChoice?` · Requires ${offer.requirement} Choice`:''}.${!offer.available?' '+offer.lockedReason:''}`;
+  $('offer-effects').innerHTML=(offer.uncertain?'<p>The outcome is uncertain.</p>':'')+(!intention&&offer.thorny&&view.revealedStats.includes('rapture')?'<p class="thorn-caption">This asks for some of your Rapture.</p>':'')+(!intention&&offer.blinking&&view.revealedStats.includes('rapture')?'<p>This is calling to you.</p>':'')+effectRows(offer.preview);$('offer-choose').textContent=intention?(offer.selected?'Keep this intention':'Set intention'):'Choose';$('offer-choose').disabled=!offer.available;$('offer-choose').onclick=()=>{$('offer-dialog').close();activate(id);};$('offer-dialog').showModal();}
 function explainAttribute(stat){if(!view.revealedStats.includes(stat))return;
   $('attribute-title').textContent=`${prose(names[stat])} · ${attributeFmt(stat)}`;$('attribute-text').textContent=prose(attributeDescription(stat,state));$('attribute-dialog').showModal();}
 function activate(action){
   if(busy)return;audio.unlock();
-  if(action==='settings'){$('settings').showModal();return;}
+  if(action==='settings'){document.querySelectorAll('[data-world]').forEach(button=>{button.disabled=!view.systems.find(system=>system.id===button.dataset.world)?.unlocked;});$('settings').showModal();return;}
   if(action==='effects'){openEffects();return;}
   if(action==='restart'){$('restart-dialog').showModal();return;}
   if(action.startsWith('attribute:')){explainAttribute(action.slice(10));return;}
@@ -334,20 +357,21 @@ function setupDialogs(){
   $('motion').onchange=e=>{prefs.reduceMotion=e.target.checked;savePrefs();redraw();};$('large-text').onchange=e=>{prefs.largeText=e.target.checked;readPage=0;savePrefs();redraw();};
   $('transition').onchange=e=>{prefs.transition=e.target.value;savePrefs();};$('speed').onchange=e=>{prefs.speed=e.target.value;$('demo-speed').value=prefs.speed;savePrefs();};
   $('show-effects').onclick=openEffects;
-  $('show-guide').onclick=()=>{$('learned-guide').innerHTML=view.revealedStats.map(stat=>`<p><b>${names[stat]}</b> is now visible. Tap it at the top of the screen to learn what it means.</p>`).join('')+(state.phase==='playing'?'<p>Hold a decision to read it before choosing. The three small icons open parts of your life as you build them. A faded icon is not available yet.</p>':'');$('guide').showModal();};
+  $('show-guide').onclick=()=>{$('learned-guide').innerHTML=view.revealedStats.map(stat=>`<p><b>${names[stat]}</b> is now visible. Tap it at the top of the screen to learn what it means.</p>`).join('')+(state.phase==='playing'?'<p>Hold a decision to read it before choosing. Thorns mark a sacrifice of Rapture. Small flashes mark something appealing.</p><p>The three icons open parts of your life. Look around or set an intention for later. A faded icon is not available yet.</p>':'');$('guide').showModal();};
+  document.querySelectorAll('[data-world]').forEach(button=>{button.onclick=()=>{$('settings').close();activate('system:'+button.dataset.world);};});
   $('show-progress').onclick=()=>{$('settings').close();activate('progress');};
   $('play-effect').onclick=playDemo;$('next-effect').onclick=()=>{$('demo-effect').selectedIndex=($('demo-effect').selectedIndex+1)%EFFECTS.length;playDemo();};$('effects-dialog').addEventListener('close',()=>{demoId++;$('play-effect').disabled=$('next-effect').disabled=false;});
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());$('restart').onclick=()=>$('restart-dialog').showModal();
   $('confirm-restart').onclick=()=>{animationId++;busy=false;state=createGame();choiceShown=false;introRefusal=false;screen='scene';sceneSource='intro';sceneIndex=sceneIntroIndex=logIndex=readPage=systemPage=0;navigation=[];persist();document.querySelectorAll('dialog[open]').forEach(d=>d.close());redraw();};
   window.alignmentBack=()=>{const open=[...document.querySelectorAll('dialog[open]')].at(-1);if(open){open.close();return true;}if(busy){animationId++;busy=false;redraw();persist();return true;}if(screen==='main'||(screen==='scene'&&sceneSource==='intro'&&sceneIntroIndex===0&&sceneIndex===0&&!introRefusal))return false;activate('back');return true;};
-  addEventListener('keydown',event=>{if(!document.querySelector('dialog[open]')&&screen==='scene'&&currentLayout.scene?.kind==='prompt'&&['y','n'].includes(event.key.toLowerCase())){event.preventDefault();activate(event.key.toLowerCase()==='y'?'continue':'decline');return;}if(event.key==='Escape'&&!document.querySelector('dialog[open]')&&window.alignmentBack())event.preventDefault();if(!document.querySelector('dialog[open]')&&screen==='scene'&&(event.key==='ArrowRight'||event.key===' ')){event.preventDefault();const next=currentLayout.buttons.find(b=>['next-line','continue','close-scene','sleep','begin_stage2'].includes(b.action));if(next)activate(next.action);}if(event.key==='ArrowLeft'&&!document.querySelector('dialog[open]')){event.preventDefault();window.alignmentBack();}});
+  addEventListener('keydown',event=>{if(!document.querySelector('dialog[open]')&&screen==='scene'&&currentLayout.scene?.kind==='prompt'&&['y','n'].includes(event.key.toLowerCase())){event.preventDefault();activate(event.key.toLowerCase()==='y'?'continue':'decline');return;}if(event.key==='Escape'&&!document.querySelector('dialog[open]')&&window.alignmentBack())event.preventDefault();if(!document.querySelector('dialog[open]')&&screen==='scene'&&(event.key==='ArrowRight'||event.key===' ')){event.preventDefault();const next=currentLayout.buttons.find(b=>['next-line','continue','continue_interlude','close-scene','sleep','begin_stage2'].includes(b.action));if(next)activate(next.action);}if(event.key==='ArrowLeft'&&!document.querySelector('dialog[open]')){event.preventDefault();window.alignmentBack();}});
 }
 try{
   const savedGame=storage.getItem(SAVE_KEY);
-  try{if(JSON.parse(savedGame)?.version===1&&storage.getItem(MIGRATION_BACKUP_KEY)===null)migrationBackupPending=savedGame;}catch{}
+  let savedVersion;try{savedVersion=JSON.parse(savedGame)?.version;const backupKey=savedVersion===1?MIGRATION_BACKUP_KEY:savedVersion===2?RHYTHM_BACKUP_KEY:null;if(backupKey&&storage.getItem(backupKey)===null)migrationBackupPending={key:backupKey,raw:savedGame};}catch{}
   state=restoreGame(savedGame)||createGame();screen=state.phase==='intro'?'scene':'main';sceneSource='intro';sceneIntroIndex=state.introIndex;
-  try{const ui=JSON.parse(storage.getItem(UI_KEY));const validPosition=p=>p&&['main','scene','log','system','progress'].includes(p.screen)&&['intro','outcome','entry'].includes(p.sceneSource)&&['local','fintech','social'].includes(p.systemId)&&['sceneIndex','sceneIntroIndex','logIndex','readPage','systemPage'].every(k=>Number.isInteger(p[k])&&p[k]>=0&&p[k]<10000);
-    if(ui&&ui.seed===state.seed&&ui.turn===state.turn&&ui.phase===state.phase&&ui.introIndex===state.introIndex&&validPosition(ui)){restorePosition(ui);choiceShown=ui.choiceShown===true;navigation=Array.isArray(ui.navigation)?ui.navigation.filter(validPosition).slice(-12):[];}
+  try{const ui=JSON.parse(storage.getItem(UI_KEY));const validPosition=p=>p&&['main','scene','log','system','system-detail','progress'].includes(p.screen)&&['intro','outcome','entry'].includes(p.sceneSource)&&['local','fintech','social'].includes(p.systemId)&&['sceneIndex','sceneIntroIndex','logIndex','readPage','systemPage'].every(k=>Number.isInteger(p[k])&&p[k]>=0&&p[k]<10000);
+    if(ui&&ui.seed===state.seed&&ui.turn===state.turn&&ui.phase===state.phase&&ui.introIndex===state.introIndex&&validPosition(ui)&&!(savedVersion<3&&getView(state).interlude)){restorePosition(ui);choiceShown=ui.choiceShown===true;navigation=Array.isArray(ui.navigation)?ui.navigation.filter(validPosition).slice(-12):[];}
   }catch{}
   const assetNames=['tree','tree-small','sun','home','food','bread','computer','book','coin','tools','people','town','heart','compass','friend','coffee','briefcase','chart'];
   const loadImage=(target,name,src)=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{target[name]=img;resolve();};img.onerror=()=>reject(Error('Missing image: '+src));img.src=src;});
@@ -356,5 +380,5 @@ try{
   const pause=()=>{persist();audio.stop();if(busy){animationId++;busy=false;redraw();}};
   addEventListener('pagehide',pause);addEventListener('alignmentpause',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
   setInterval(()=>{if(!busy&&!document.hidden&&!prefs.reduceMotion&&screen!=='scene'&&state.phase==='playing'&&!document.querySelector('dialog[open]')){pulse=!pulse;const result=drawGame();currentPixels=result.pixels;paint(currentPixels);}},750);
-  window.alignmentSnapshot=()=>({state:JSON.parse(JSON.stringify(state)),view:{...getView(state),revealedStats:[...view.revealedStats]},calendar:view.calendar,screen,scene:currentLayout.scene,storyEvent:currentLayout.storyEvent||null,art:currentLayout.art||null,systemId,systemPage,logIndex,page:currentLayout.page,pageCount:currentLayout.pageCount,tab:screen==='main'?'decisions':screen,busy,renderer:'original-hypercard-canvas',effects:EFFECTS.length,revealedStats:[...view.revealedStats],saveFailed,width,height,controls:currentLayout.buttons.map(b=>({action:b.action,label:b.label,available:b.available,x:b.x,y:b.y,w:b.w,h:b.h})),currentTransition:prefs.transition});
+  window.alignmentSnapshot=()=>({state:JSON.parse(JSON.stringify(state)),view:{...getView(state),revealedStats:[...view.revealedStats]},calendar:view.calendar,rhythm:view.rhythm||null,resets:view.resets??state.resets??0,interlude:view.interlude===true,screen,scene:currentLayout.scene,storyEvent:currentLayout.storyEvent||null,art:currentLayout.art||null,systemId,systemPage,logIndex,page:currentLayout.page,pageCount:currentLayout.pageCount,tab:screen==='main'?'decisions':screen,busy,renderer:'original-hypercard-canvas',effects:EFFECTS.length,revealedStats:[...view.revealedStats],saveFailed,width,height,controls:currentLayout.buttons.map(b=>({action:b.action,label:b.label,available:b.available,selected:b.selected,thorny:b.thorny,appealing:b.appealing,x:b.x,y:b.y,w:b.w,h:b.h})),currentTransition:prefs.transition});
 }catch(error){$('boot').textContent='Unable to open the stack. '+error.message;console.error(error);}

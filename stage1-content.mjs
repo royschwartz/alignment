@@ -21,9 +21,13 @@ const ordinary = s => !s.crisis;
 const available = predicate => s => ordinary(s) && predicate(s);
 const ready = s => STAGE1_MILESTONES.every(m => m.test(s));
 
-/** Feeding frequency starts weekly and becomes daily as the friend grows. */
-export const careInterval = s => p(s, 'feeds') < 2 ? 7 : p(s, 'feeds') < 4 ? 4 : p(s, 'feeds') < 7 ? 2 : 1;
-export const careFoodRequired = s => p(s, 'feeds') < 2 ? 1 : p(s, 'feeds') < 4 ? 2 : p(s, 'feeds') < 7 ? 3 : 4;
+/** Hunger belongs to the pact. These targets describe a full useful delivery;
+ * smaller loads remain possible and provide proportionally shorter relief. */
+const day = s => Math.floor(Math.max(0, Number(s.hours) || 0) / 24) + 1;
+const pacted = s => f(s, 'pactMade') || p(s, 'feeds') > 0;
+export const careInterval = s => !pacted(s) ? 0 : day(s) < 8 ? 3 : day(s) < 12 ? 2 : 1;
+export const careFoodRequired = s => !pacted(s) || day(s) < 8 ? 1 : day(s) < 12 ? 2 : day(s) < 18 ? 4 : 6;
+export const careLoad = s => Math.min(Math.max(0, s.food || 0), f(s, 'wagon') ? 8 : 2, careFoodRequired(s));
 export const STAGE1_START = 'you wake up from a long nap. you are getting hungry';
 
 export const INTRO = [
@@ -61,31 +65,31 @@ export const STAGE1_MILESTONES = [
   {
     id: 'care', label: 'Keep up with your friend’s growing appetite',
     test: s => f(s, 'wagon') && f(s, 'surplusDeal') && p(s, 'feeds') >= 8,
-    detail: s => !f(s, 'wagon') ? 'Save $48 for a wagon before a meal grows too heavy to carry.'
+    detail: s => !f(s, 'wagon') ? 'Save $72 for a wagon. Carry more food in one trip.'
       : !f(s, 'surplusDeal') ? 'Get to know the market and arrange regular food collections.'
-      : `${Math.min(8, p(s, 'feeds'))}/8 meals delivered · ${careFoodRequired(s)} bags per meal · feeding every ${careInterval(s)} ${careInterval(s) === 1 ? 'day' : 'days'}`
+      : `${Math.min(8, p(s, 'feeds'))}/8 deliveries · ${careFoodRequired(s)} bags for lasting relief · smaller loads mean more trips`
   },
   {
     id: 'career', label: 'Build an automated trader and earn more',
     test: s => f(s, 'budgetSorted') && f(s, 'traderBuilt') && f(s, 'traderTested') && f(s, 'modelLaunched'),
     detail: s => !f(s, 'budgetSorted') ? 'Sort out the bills and make a budget for yourself and your friend.'
-      : skill(s, 'coding') < 6 || skill(s, 'math') < 5 || skill(s, 'finance') < 5 ? 'Develop Coding 6, Math 5, and Markets 5 before building your trader.'
-      : !f(s, 'traderBuilt') ? `${p(s, 'model')}/3 sessions building the automated trader`
+      : skill(s, 'coding') < 4 || skill(s, 'math') < 3 || skill(s, 'finance') < 3 ? 'Develop Coding 4, Math 3, and Markets 3 before building your trader.'
+      : !f(s, 'traderBuilt') ? `${Math.min(2, p(s, 'model'))}/2 sessions building the automated trader`
       : !f(s, 'traderTested') ? 'Run the trader against unseen data and practice orders.'
       : !f(s, 'modelLaunched') ? 'Save $100 of ordinary money to start your automated trader.'
       : 'The bills are organized. Your trader is running.'
   },
   {
     id: 'community', label: 'Make friends and find someone you can rely on',
-    test: s => bond(s, 'town') >= 5 && ['Jim', 'Ethan', 'Wendy'].some(name => f(s, `recruited${name}`)),
+    test: s => bond(s, 'town') >= 4 && ['Jim', 'Ethan', 'Wendy'].some(name => f(s, `recruited${name}`)),
     detail: s => !['Jim', 'Ethan', 'Wendy'].some(name => f(s, `recruited${name}`)) ? 'Get to know GRINGO JIM, ETHAN, or WENDY. Earn enough trust to ask for help.'
-      : `Town connection ${Math.min(5, bond(s, 'town'))}/5 · Someone has agreed to help`
+      : `Town connection ${Math.min(4, bond(s, 'town'))}/4 · Someone has agreed to help`
   },
   {
     id: 'learning', label: 'Follow the strange way the world is opening',
-    test: s => skill(s, 'coding') >= 6 && skill(s, 'math') >= 5 && skill(s, 'finance') >= 5 && skill(s, 'social') >= 3 && skill(s, 'practical') >= 3 && f(s, 'awakening'),
+    test: s => skill(s, 'coding') >= 4 && skill(s, 'math') >= 3 && skill(s, 'finance') >= 3 && skill(s, 'social') >= 2 && skill(s, 'practical') >= 2 && f(s, 'awakening'),
     detail: s => !f(s, 'awakening') ? 'Keep feeding your friend, learning, and noticing what is changing. Follow the feeling when it comes.'
-      : `Coding ${Math.min(6, skill(s, 'coding')).toFixed(1)}/6 · Math ${Math.min(5, skill(s, 'math')).toFixed(1)}/5 · Markets ${Math.min(5, skill(s, 'finance')).toFixed(1)}/5 · Social ${Math.min(3, skill(s, 'social')).toFixed(1)}/3 · Practical ${Math.min(3, skill(s, 'practical')).toFixed(1)}/3`
+      : `Coding ${Math.min(4, skill(s, 'coding')).toFixed(1)}/4 · Math ${Math.min(3, skill(s, 'math')).toFixed(1)}/3 · Markets ${Math.min(3, skill(s, 'finance')).toFixed(1)}/3 · Social ${Math.min(2, skill(s, 'social')).toFixed(1)}/2 · Practical ${Math.min(2, skill(s, 'practical')).toFixed(1)}/2`
   },
   {
     id: 'relationship', label: 'Build a real connection with PERSON',
@@ -108,7 +112,7 @@ export const ACTIONS = [
     recovery: { ceiling: 50 }, challenge: 2,
     when: available(s => s.stats.choice < 50 && s.stats.rapture >= 3 * (1 + (s.personality?.resolve || 0) * 0.1) && (!Object.hasOwn(s.progress, 'recoveryAt') || s.hours - p(s, 'recoveryAt') >= 6)),
     weight: 20, desire: 0.3,
-    effects: s => ({ rapture: -3, disquiet: -1, progress: { recoveryAt: s.hours + 1 - p(s, 'recoveryAt') } }),
+    effects: s => ({ rapture: -3, disquiet: -1, lifestyle: 1, progress: { recoveryAt: s.hours + 1 - p(s, 'recoveryAt') } }),
     outcome: s => scene('One thing', vary(s, [
       'one cup washed.\n\nyou put it away.',
       'the water warm.\n\nyou finish this one thing.',
@@ -119,7 +123,7 @@ export const ACTIONS = [
   },
     {
     id: 'buy_food', system: 'local', label: 'Buy groceries', category: 'care', subcategory: 'supplies', duration: 1,
-    description: 'Three bags of food. The shop is still open.', requirement: 6,
+    description: 'Three bags for the hole. $18. Your own meals are separate.', requirement: 6,
     when: available(s => s.money >= 18), weight: s => s.food < 2 ? 12 : 2,
     desire: s => s.stats.hunger > 48 && s.food < 2 ? 0.82 : 0.32,
     effects: () => ({ money: -18, food: 3 }),
@@ -127,11 +131,11 @@ export const ACTIONS = [
   },
   {
     id: 'feed_friend', system: 'local', label: 'Feed your friend', category: 'care', subcategory: 'feeding', duration: 3,
-    description: s => `Bring ${careFoodRequired(s)} ${careFoodRequired(s) === 1 ? 'bag' : 'bags'} to the woods. ${careFoodRequired(s) > 2 ? 'You need the wagon for this much food.' : 'You can still carry this yourself.'}`, requirement: 4,
-    when: available(s => s.food >= careFoodRequired(s) && (careFoodRequired(s) <= 2 || f(s, 'wagon')) && s.hours >= (s.care?.nextFeedAt ?? 168) - 12),
+    description: s => `Deliver ${careLoad(s)} ${careLoad(s) === 1 ? 'bag' : 'bags'}. ${careFoodRequired(s)} for lasting relief. ${f(s, 'wagon') ? 'The wagon carries up to eight.' : 'Your arms carry two; smaller loads mean more trips.'}`, requirement: 4,
+    when: available(s => s.food >= 1 && s.stats.hunger >= 12),
     weight: 28, desire: 0.96, neglect: 1.8,
-    effects: s => ({ food: -careFoodRequired(s), hunger: -8, rapture: 9, relationships: { friend: 1 }, progress: { feeds: 1 } }),
-    outcome: s => scene('Your friend', p(s, 'feeds') === 0 ? 'A week ago, half a granola bar was enough.\n\nYou lower the bag into the dark.\n\n**the feeding begins**\n\n*thank you*\n\nYou feel a relief that has nothing to do with your own stomach.' : vary(s, ['You wait for your hands to clear the opening. The bag disappears.\n\n*can I have some more?*', 'The meal is larger. The silence after it is shorter. You count the days since the last visit.', 'The wagon wheels leave tracks in the mud. Something beneath the ground follows their rhythm.'], 'feed_friend'), p(s, 'feeds') === 0 ? 'scene' : undefined)
+    effects: s => ({ food: -careLoad(s), hunger: -60, rapture: 10, relationships: { friend: 1 }, progress: { feeds: 1 } }),
+    outcome: s => scene('Your friend', p(s, 'feeds') === 0 ? 'You did not want to come back.\n\nYou lower the bag into the dark.\n\n**the feeding begins**\n\n*thank you*\n\nYou feel a relief that has nothing to do with your own stomach.' : vary(s, ['You wait for your hands to clear the opening. The bag disappears.\n\n*can I have some more?*', 'The meal is larger. The silence after it is shorter. You count the days since the last visit.', 'The wagon wheels leave tracks in the mud. Something beneath the ground follows their rhythm.'], 'feed_friend'), p(s, 'feeds') === 0 ? 'scene' : undefined)
   },
     {
     id: 'ask_friend', system: 'local', label: 'Ask your friend a question', category: 'care', subcategory: 'understanding', duration: 1,
@@ -163,9 +167,9 @@ export const ACTIONS = [
   },
     {
     id: 'collect_surplus', system: 'local', label: 'Collect the food crates', category: 'care', subcategory: 'supplies', duration: 2,
-    description: 'Six bags’ worth, packed together. Your arrangement is paying off.', requirement: 8,
-    when: available(s => f(s, 'surplusDeal') && f(s, 'wagon') && s.money >= 18), weight: s => s.food < 3 ? 13 : 2, desire: s => s.food < 2 && s.stats.hunger > 45 ? 0.9 : 0.42,
-    effects: () => ({ money: -18, food: 6 }),
+    description: 'Six bags for $24. Return the crates. Bring the wagon.', requirement: 8,
+    when: available(s => f(s, 'surplusDeal') && f(s, 'wagon') && s.money >= 24), weight: s => s.food < 3 ? 13 : 2, desire: s => s.food < 2 && s.stats.hunger > 45 ? 0.9 : 0.42,
+    effects: () => ({ money: -24, food: 6 }),
     outcome: s => scene("The collection", vary(s, ["Your name is already on the crate. You return the empties and take the food.", "“You’re reliable,” the manager says. You have arrived when you said you would.", "You know the weight of the crate before lifting it. You check the label anyway."], "collect_surplus"))
   },
     {
@@ -191,9 +195,9 @@ export const ACTIONS = [
   },
   {
     id: 'stock_feeder', system: 'local', label: 'Stock and run the feeder', category: 'care', subcategory: 'feeding', duration: 2,
-    description: s => `Load ${careFoodRequired(s)} bags into the apparatus. The machine saves carrying time; it cannot make the appetite stop.`, requirement: 8,
-    when: available(s => f(s, 'feederBuilt') && f(s, 'wagon') && s.food >= careFoodRequired(s) && s.hours >= (s.care?.nextFeedAt ?? 168) - 12), weight: 30, desire: 0.96, neglect: 1.8,
-    effects: s => ({ food: -careFoodRequired(s), hunger: -8, rapture: 9, relationships: { friend: 1 }, progress: { feeds: 1, stocked: 1 }, flags: { feederStocked: true } }),
+    description: s => `Load ${careLoad(s)} bags. The chute saves handling; food and Hunger remain real costs.`, requirement: 8,
+    when: available(s => f(s, 'feederBuilt') && f(s, 'wagon') && s.food >= 1 && s.stats.hunger >= 12), weight: 30, desire: 0.96, neglect: 1.8,
+    effects: s => ({ food: -careLoad(s), hunger: -60, rapture: 10, relationships: { friend: 1 }, progress: { feeds: 1, stocked: 1 }, flags: { feederStocked: true } }),
     outcome: s => scene('The apparatus', vary(s, ['The release opens. You clean the chute before going home. Already you are thinking about tomorrow.', 'You sit beside the machine and listen to its work.\n\n*can I have some more?*', 'There is less clearance beneath the shed. You note the measurements. Your friend has grown again.'], 'stock_feeder'))
   },
     {
@@ -240,7 +244,7 @@ export const ACTIONS = [
   },
     {
     id: 'portfolio_project', system: 'fintech', label: 'Build your portfolio project', category: 'work', subcategory: 'craft', duration: 4,
-    description: 'Make a useful tool, then make it dependable. Three focused sessions.', requirement: 38,
+    description: 'Make a useful tool, then make it dependable. Two focused sessions.', requirement: 38,
     when: available(s => p(s, 'lessons') >= 3 && p(s, 'portfolio') < 3), weight: 11, desire: 0.61,
     effects: () => ({ disquiet: 3, skills: { coding: 0.5 }, progress: { portfolio: 1 } }),
     outcome: s => scene("Your portfolio", ["Your tool finds mismatched payments. It also flags correct ones; you start a list of cases to fix.", "You test duplicate entries, missing dates, and payments that almost agree. The list of failures gets shorter.", "You publish the project with examples and clear limits. You check the link from another browser: it is really there."][Math.min(2, p(s, 'portfolio'))])
@@ -296,9 +300,9 @@ export const ACTIONS = [
   },
   {
     id: 'build_model', system: 'fintech', label: 'Build your automated trader', category: 'learning', subcategory: 'trader', duration: 6,
-    description: 'Turn coding, mathematics, and market study into a program that can place its own orders. Three focused sessions.', requirement: 43,
-    when: available(s => f(s, 'budgetSorted') && skill(s, 'coding') >= 6 && skill(s, 'math') >= 5 && skill(s, 'finance') >= 5 && p(s, 'model') < 3), weight: 14, desire: 0.84,
-    effects: s => ({ rapture: -3, disquiet: 2, skills: { coding: 0.5, math: 0.25, finance: 0.25 }, progress: { model: 1 }, flags: p(s, 'model') >= 2 ? { traderBuilt: true } : {} }),
+    description: 'Turn coding, mathematics, and market study into a program that can place its own orders. Two focused sessions.', requirement: 43,
+    when: available(s => f(s, 'budgetSorted') && skill(s, 'coding') >= 4 && skill(s, 'math') >= 3 && skill(s, 'finance') >= 3 && p(s, 'model') < 2), weight: 14, desire: 0.84,
+    effects: s => ({ rapture: -3, disquiet: 2, skills: { coding: 0.5, math: 0.25, finance: 0.25 }, progress: { model: 1 }, flags: p(s, 'model') >= 1 ? { traderBuilt: true } : {} }),
     outcome: s => scene('The automated trader', ['You write the data reader and order simulator. The patterns feel visible before the screen has drawn them. You make yourself prove the numbers.', 'You build position limits and a stop switch. For a moment you resent needing either. The feeling frightens you enough to test both.', 'You connect the parts. A quote arrives; the program decides; an order appears in the simulator. You take your hands off the keyboard. It keeps working.'][Math.min(2, p(s, 'model'))])
   },
   {
@@ -332,7 +336,7 @@ export const ACTIONS = [
     {
     id: 'cafe_person', system: 'social', label: 'Ask PERSON for coffee', category: 'relationship', subcategory: 'invitation', duration: 2,
     description: 'A small invitation. Coffee for two costs $10.', requirement: 43,
-    when: available(s => f(s, 'metPerson') && !f(s, 'cafe') && p(s, 'conversations') >= 2 && bond(s, 'person') >= 3 && s.money >= 10), weight: 13, desire: 0.82,
+    when: available(s => f(s, 'metPerson') && !f(s, 'cafe') && p(s, 'conversations') >= 1 && bond(s, 'person') >= 2 && s.money >= 10), weight: 13, desire: 0.82,
     effects: () => ({ money: -10, disquiet: 3, rapture: 7, relationships: { person: 2 }, flags: { cafe: true } }),
     outcome: s => scene("Two cups", "PERSON says yes before you finish making the invitation sound casual. She folds a receipt beneath the café’s wobbling table. You stay after both cups are empty.")
   },
@@ -361,7 +365,7 @@ export const ACTIONS = [
     id: 'time_person', system: 'social', label: 'Spend the evening with PERSON', category: 'relationship', subcategory: 'presence', duration: 3,
     description: 'An ordinary evening is still something you have to choose.', requirement: 31,
     when: available(s => f(s, 'cafe')), weight: 6, desire: s => f(s, 'relationship') ? 0.87 : 0.74, neglect: 1.6,
-    effects: () => ({ rapture: 7, relationships: { person: 1 } }),
+    effects: s => ({ rapture: 14, relationships: { person: 1 }, progress: { personEvenings: 1, personLastTimeAt: s.hours - p(s, 'personLastTimeAt') } }),
     outcome: s => scene("An evening", vary(s, ["PERSON washes the dishes while you dry. You tell her about the difficult part of your day.", "Neither of you likes the film. Complaining about it becomes the evening.", "PERSON has had a bad day. You ask whether she wants advice; she does not. You listen.", "The telephone rings. You let the answering machine take it while PERSON makes another pot of coffee."], "time_person"))
   },
     {
@@ -389,14 +393,14 @@ export const ACTIONS = [
     id: 'accept_help', system: 'social', label: 'Let someone help you', category: 'self', subcategory: 'dependence', duration: 2,
     description: 'You have been offered a meal and some company. Accepting feels strangely difficult.', requirement: 12,
     when: available(s => bond(s, 'town') >= 3 || bond(s, 'person') >= 3), weight: s => s.stats.disquiet > 55 || s.stats.choice < 30 ? 12 : 3, desire: 0.64, challenge: 5,
-    effects: () => ({ disquiet: 3, hunger: -15, rapture: 8, relationships: { town: 1 } }),
+    effects: () => ({ disquiet: 1, lifestyle: 3, rapture: 10, relationships: { town: 1 } }),
     outcome: s => scene('A meal you did not make', vary(s, f(s, 'metPerson') ? ["PERSON puts a plate in front of you. You start explaining why you have not looked after yourself. “Eat first,” she says.", "PERSON brings extra portions and puts them in your fridge. You eat one without promising to repay her immediately.", "You call PERSON instead of waiting for her to notice. She asks what would help, and you ask her to bring dinner.", "You let PERSON take a turn cooking. When she tells you to sit down, you do."] : ["The woman from the kitchen pulls out a chair for you. You sit down and eat with the others.", "A volunteer sets aside a portion for you. You accept it before beginning to explain why you should not.", "You come to the kitchen for a meal instead of a shift. Nobody asks you to work first."], 'accept_help'))
   },
     {
     id: 'learn_practical', system: 'local', label: 'Learn to fix something', category: 'learning', subcategory: 'practical', duration: 3,
     description: 'Borrow tools from the library. Work on a hinge, a seal, a small machine.', requirement: 24,
     when: available(s => skill(s, 'practical') < 7), weight: s => skill(s, 'practical') < 3 ? 8 : 2, desire: 0.42,
-    effects: () => ({ disquiet: -2, rapture: -2, skills: { practical: 1 } }),
+    effects: () => ({ disquiet: -2, rapture: -2, lifestyle: 2, skills: { practical: 1 } }),
     outcome: s => scene("With your hands", vary(s, ["You take the hinge apart and briefly make it worse. After a few hours, the door closes properly.", "You borrow a toolkit from the library. The new seal leaks on your first attempt; the second holds.", "You cut the piece badly and file the edge until it fits. Knowing the shape does not teach your hands to make it."], "learn_practical"))
   },
     {
@@ -417,7 +421,7 @@ export const ACTIONS = [
     id: 'make_budget', system: 'fintech', label: 'Look honestly at the budget', category: 'self', subcategory: 'accounting', duration: 2,
     description: 'Open the bills. Cancel one expense. Write down the cost of keeping going.', requirement: 22,
     when: available(() => true), weight: s => s.money < 30 ? 5 : 2, desire: 0.28,
-    effects: () => ({ disquiet: -3, rapture: -2, skills: { practical: 0.25, finance: 0.5 }, flags: { budgetSorted: true } }),
+    effects: () => ({ disquiet: -3, rapture: -2, lifestyle: 2, skills: { practical: 0.25, finance: 0.5 }, flags: { budgetSorted: true } }),
     outcome: s => scene("The numbers", vary(s, ["You open the bills and cancel a forgotten subscription. The plan reaches as far as next week.", "You find one charge you can reduce. You leave money for your own food in the budget.", "The company reverses the charge after half an hour on the phone. You put the refund toward groceries."], "make_budget"))
   },
     {
@@ -444,36 +448,36 @@ export const ACTIONS = [
   {
     id: 'eat_meal', system: 'local', label: 'Cook rice, vegetables, and eggs', category: 'self', subcategory: 'nourishment', duration: 1,
     meal: { tasty: true, healthy: true }, description: 'A warm meal you like. Healthy, tasty, and $5.', requirement: 7,
-    when: available(s => s.money >= 5), weight: s => s.stats.hunger > 14 ? 16 : 3, desire: 0.65,
-    effects: () => ({ money: -5, hunger: -26, disquiet: -1, rapture: 8 }),
-    outcome: s => scene('At the table', vary(s, ['You get the rice right. The egg breaks into the vegetables. You eat slowly enough to taste the whole thing.', 'You sit down with a warm plate. This hunger belongs to you, and for a little while you know how to answer it.'], 'eat_meal'))
+    when: available(s => s.money >= 5), weight: s => (s.lifestyle ?? 40) < 45 ? 5 : 2, desire: 0.65,
+    effects: () => ({ money: -5, lifestyle: 4, disquiet: -1, rapture: 12 }),
+    outcome: s => scene('At the table', vary(s, ['You get the rice right. The egg breaks into the vegetables. You eat slowly enough to taste the whole thing.', 'You sit down with a warm plate. You enjoy every mouthful. The other Hunger remains.'], 'eat_meal'))
   },
     {
     id: 'clean_room', system: 'local', label: 'Put your room in order', category: 'self', subcategory: 'maintenance', duration: 2,
     description: 'Start with one surface. You do not have to fix your life before washing a cup.', requirement: 17,
     when: available(() => true), weight: 3, desire: 0.32,
-    effects: () => ({ disquiet: -5, rapture: -2, skills: { practical: 0.5 } }),
+    effects: () => ({ disquiet: -5, rapture: -3, lifestyle: 5, skills: { practical: 0.5 } }),
     outcome: s => scene("The room", vary(s, ["You collect the cups and clear the table. Then you open the window.", "You fill a bag with things you have been meaning to throw away. There is more floor than you remembered.", "You wash one plate, then the rest. They are ready for next time."], "clean_room"))
   },
     {
     id: 'rest', system: 'local', label: 'Get some real sleep', category: 'self', subcategory: 'rest', duration: 8,
     description: 'Close the curtains. Leave the unfinished things unfinished for a while.', requirement: 7,
-    when: available(s => s.stats.hunger < 65), weight: s => s.stats.disquiet > 55 ? 9 : 2, desire: 0.56,
-    effects: () => ({ disquiet: -12, rapture: 4 }),
+    when: available(() => true), weight: s => s.stats.disquiet > 55 ? 9 : 2, desire: 0.56,
+    effects: () => ({ disquiet: -8, rapture: 8, lifestyle: 3 }),
     outcome: s => scene("Sleep", vary(s, ["You wake once with the impression of roots around you. Then you recognize your room and sleep again.", "You sleep through the delivery van outside. When you get up, you feel rested.", "You turn the telephone’s ringer down. The first restless minutes pass, and you fall asleep."], "rest"))
   },
     {
     id: 'television', system: 'local', label: 'Watch television', category: 'avoidance', subcategory: 'television', duration: 2,
     description: 'Let the room fill with other people’s voices.', requirement: 0,
     when: available(() => true), weight: s => s.stats.choice < 35 || s.stats.disquiet > 65 ? 8 : 2, desire: s => s.stats.disquiet > 65 ? 0.78 : 0.3,
-    effects: () => ({ disquiet: -2, rapture: 6 }),
+    effects: () => ({ disquiet: -2, rapture: 14, lifestyle: -1 }),
     outcome: s => scene("The television", vary(s, ["An old comedy catches you off guard. You laugh aloud in the empty room.", "The presenter laughs. An advertisement begins; you stay for the next program.", "You recognize the episode. You let it play anyway."], "television"))
   },
     {
     id: 'browse', label: 'Browse without a purpose', category: 'avoidance', subcategory: 'scrolling', duration: 2,
     description: 'There is always something else to look at.', requirement: 0,
     when: available(() => true), weight: s => s.stats.choice < 30 ? 8 : 2, desire: s => s.stats.disquiet > 55 ? 0.78 : 0.36,
-    effects: () => ({ disquiet: 2, rapture: -2 }),
+    effects: () => ({ disquiet: 2, rapture: -2, lifestyle: -2 }),
     outcome: s => scene("Another page", vary(s, ["You browse the internet. Nothing holds your attention.", "An argument makes you furious. Your friend feels the anger without knowing what caused it.", "The modem finishes connecting. You open the same page you read yesterday."], "browse"))
   },
     {
@@ -501,35 +505,35 @@ export const ACTIONS = [
     id: 'crisis_move_friend', label: 'Stay and make him comfortable', category: 'crisis', subcategory: 'care', duration: 2,
     description: 'Clear the pressure around his body. Give up the rest of the day. This will hurt.', requirement: 0, challenge: 4,
     when: s => Boolean(s.crisis), weight: 20, desire: 0.7,
-    effects: s => ({ hunger: -24, disquiet: -9, rapture: -3, relationships: { friend: 1 }, progress: { danger: -Math.min(1, p(s, 'danger')) }, flags: { crisisRelief: true } }),
+    effects: s => ({ disquiet: -9, rapture: -3, relationships: { friend: 1 }, progress: { danger: -Math.min(1, p(s, 'danger')) }, flags: { crisisRelief: true } }),
     outcome: s => scene("Within reach", "You move the timber pressing against him, feeling each scrape in your own skin. At last he can settle. You stay until the pain subsides.")
   },
     {
     id: 'crisis_call_person', label: 'Ask someone to come', category: 'crisis', subcategory: 'help', duration: 2,
     description: 'Admit you cannot manage this alone. Someone will bring food and stay nearby.', requirement: 0, challenge: 4,
     when: s => Boolean(s.crisis), weight: 20, desire: 0.64,
-    effects: s => ({ food: 2, hunger: -18, disquiet: -16, rapture: -2, progress: { danger: -Math.min(2, p(s, 'danger')) }, flags: { crisisRelief: true } }),
+    effects: s => ({ food: 2, disquiet: -16, rapture: -2, progress: { danger: -Math.min(2, p(s, 'danger')) }, flags: { crisisRelief: true } }),
     outcome: s => scene('The call', f(s, 'metPerson') ? "PERSON brings groceries and waits where you ask them to wait. You owe them an explanation. For now, your hands have stopped shaking." : "You call the community kitchen and manage to say you need help. Someone brings food and stays with you until your hands stop shaking.")
   },
     {
     id: 'crisis_silence', label: 'Force the feeling away', category: 'crisis', subcategory: 'denial', duration: 2,
     description: 'Shut the door and refuse the pain. Your friend will still be alone with it.', requirement: 0, ethics: 4,
     when: s => Boolean(s.crisis), weight: 8, desire: 0.83,
-    effects: () => ({ hunger: 8, disquiet: 7, rapture: -6, progress: { danger: 1 } }),
+    effects: () => ({ disquiet: 7, rapture: -6, progress: { danger: 1 } }),
     outcome: s => scene('Through the door', p(s, 'danger') >= 2 ? "When the feeling returns, his pain is quieter and farther away. Your own hands are cold. He is weakening, and you are weakening with him." : "You turn up the television. His pain becomes part of the sound. You have left him alone with it.")
   },
     {
     id: 'crisis_leave', label: 'Walk away from him', category: 'crisis', subcategory: 'abandonment', duration: 3,
     description: s => p(s, 'danger') >= 3 ? 'He is failing. You can feel your body failing with his. Leaving now will kill you both.' : 'Leave while he is in pain. Distance will not separate what you share.', requirement: 0, ethics: 8,
     when: s => Boolean(s.crisis), weight: 5, desire: 0.76,
-    effects: s => ({ hunger: 12, disquiet: 9, rapture: -8, progress: { danger: 1 }, flags: p(s, 'danger') >= 3 ? { friendKilled: true } : {} }),
+    effects: s => ({ disquiet: 9, rapture: -8, progress: { danger: 1 }, flags: p(s, 'danger') >= 3 ? { friendKilled: true } : {} }),
     outcome: s => scene(p(s, 'danger') >= 3 ? 'The same ending' : 'No distance', p(s, 'danger') >= 3 ? "You keep walking after the first collapse.\n\nYour legs are not injured.\n\nThere is simply less of you left to move them.\n\nYour friend stops waiting.\n\nYou feel the last movement as your own.\n\nThe world goes on.\n\nYou do not." : "You walk until the houses end. The pain comes with you. You are farther from the food and still inside the same hurt.", p(s, 'danger') >= 3 ? 'scene' : undefined)
   },
   {
     id: 'buy_wagon', system: 'local', label: 'Buy a wagon', category: 'care', subcategory: 'transport', duration: 2,
-    description: 'A secondhand garden wagon costs $48. It carries eight bags; your arms can carry two.', requirement: 12,
-    when: available(s => !f(s, 'wagon') && s.money >= 48 && p(s, 'feeds') >= 1), weight: 17, desire: 0.76,
-    effects: () => ({ money: -48, skills: { practical: 0.5 }, flags: { wagon: true } }),
+    description: 'A secondhand garden wagon costs $72. It carries eight bags; your arms can carry two.', requirement: 12,
+    when: available(s => !f(s, 'wagon') && s.money >= 72 && p(s, 'feeds') >= 1), weight: 17, desire: 0.76,
+    effects: () => ({ money: -72, skills: { practical: 0.5 }, flags: { wagon: true } }),
     outcome: () => scene('The wagon', 'You test the wheels in the seller’s driveway.\n\n“Garden project?”\n\n“Something like that.”\n\nThe first loaded trip is almost easy. You keep thinking about how quickly your arms stopped being enough.', 'scene')
   },
   {
@@ -556,25 +560,25 @@ export const ACTIONS = [
   {
     id: 'follow_feeling', system: 'local', label: 'Follow the strange feeling', category: 'self', subcategory: 'awakening', duration: 3,
     description: 'The world has begun arriving all at once. Sit with it long enough to notice what is changing.', requirement: 30,
-    when: available(s => p(s, 'feeds') >= 3 && skill(s, 'coding') + skill(s, 'math') + skill(s, 'finance') >= 7 && !f(s, 'awakening')), weight: 18, desire: 0.91,
+    when: available(s => p(s, 'feeds') >= 2 && skill(s, 'coding') + skill(s, 'math') + skill(s, 'finance') >= 4 && !f(s, 'awakening')), weight: 18, desire: 0.91,
     effects: () => ({ rapture: 18, disquiet: 6, skills: { coding: 0.5, math: 0.5, finance: 0.5 }, flags: { awakening: true } }),
     outcome: () => scene('Alive', 'Every leaf is separate.\n\nYou can feel where the sunlight will move before it moves. The world has become as new as it was when you were a child.\n\nYou think: I could understand anything.\n\nThen: I could change anything.\n\nThe pleasure is enormous. So is the feeling that something has turned to look through you.', 'scene')
   }
 ];
 
 const MEALS = [
-  { id: 'eat_salad', label: 'Eat the plain bean salad', price: 3, tasty: false, healthy: true, hunger: 24, rapture: -3, disquiet: -2, text: 'It is good food. You dislike every mouthful. You finish it anyway, and the hunger recedes.' },
-  { id: 'eat_fried_chicken', label: 'Buy fried chicken and fries', price: 7, tasty: true, healthy: false, hunger: 25, rapture: 12, disquiet: 4, text: 'The first bite is perfect: salt, heat, crunch. You eat the fries from the bag. The pleasure stays even as your stomach begins to feel heavy.' },
-  { id: 'eat_stale_snack', label: 'Eat the stale bargain snack', price: 1, tasty: false, healthy: false, hunger: 13, rapture: -2, disquiet: 2, text: 'The coating has gone waxy. It is cheap, and it fills part of the empty space. You wish you had chosen something else.' },
-  { id: 'eat_oatmeal', label: 'Make plain oatmeal', price: 1, tasty: false, healthy: true, hunger: 20, rapture: -2, disquiet: -1, text: 'Warm, inexpensive, dull. You scrape the bowl clean. It keeps you going, even though you did not enjoy it.' },
+  { id: 'eat_salad', label: 'Eat the plain bean salad', price: 3, tasty: false, healthy: true, lifestyle: 5, rapture: -3, disquiet: -2, text: 'Beans. No appetite for them.\n\nYou finish anyway.\n\nThe other Hunger stays.' },
+  { id: 'eat_fried_chicken', label: 'Buy fried chicken and fries', price: 7, tasty: true, healthy: false, lifestyle: -3, rapture: 18, disquiet: 4, text: 'Salt. Heat. The first bite.\n\nYou reach for another.\n\nThe Hunger is elsewhere.' },
+  { id: 'eat_stale_snack', label: 'Eat the stale bargain snack', price: 1, tasty: false, healthy: false, lifestyle: -2, rapture: -2, disquiet: 2, text: 'Waxy coating. A dollar.\n\nYou finish it.\n\nWish you had chosen something else.' },
+  { id: 'eat_oatmeal', label: 'Make plain oatmeal', price: 1, tasty: false, healthy: true, lifestyle: 4, rapture: -2, disquiet: -1, text: 'Warm. Dull. Good for you.\n\nYou scrape the bowl.\n\nNothing has changed in the woods.' },
 ];
 ACTIONS.push(...MEALS.map(meal => ({
   id: meal.id, system: 'local', label: meal.label, category: 'self', subcategory: 'nourishment', duration: 1,
   meal: { tasty: meal.tasty, healthy: meal.healthy },
-  description: `${meal.healthy ? 'Healthy' : 'Unhealthy'} and ${meal.tasty ? 'tasty' : 'not tasty to you'}. $${meal.price}. ${meal.tasty ? 'Enjoying it restores Rapture.' : 'Eating it costs Rapture.'}${meal.healthy ? '' : ' It adds Disquiet.'}`,
-  requirement: meal.tasty ? 2 : 8,
-  when: available(s => s.money >= meal.price), weight: s => s.stats.hunger > 15 ? 10 : 2, desire: meal.tasty ? 0.78 : 0.32,
-  effects: () => ({ money: -meal.price, hunger: -meal.hunger, rapture: meal.rapture, disquiet: meal.disquiet }),
+  description: `$${meal.price}. ${meal.tasty ? 'Pleasure restores Rapture.' : 'Finishing it costs Rapture.'} ${meal.healthy ? 'A little better for your life.' : 'A little more Disquiet.'} Hunger is unchanged.`,
+  requirement: meal.tasty ? 2 : 6, challenge: !meal.tasty && meal.healthy ? 1 : 0,
+  when: available(s => s.money >= meal.price), weight: s => (s.lifestyle ?? 40) < 45 ? 4 : 2, desire: meal.tasty ? 0.88 : 0.26,
+  effects: () => ({ money: -meal.price, lifestyle: meal.lifestyle, rapture: meal.rapture, disquiet: meal.disquiet }),
   outcome: () => scene('Something to eat', meal.text),
 })));
 
@@ -586,7 +590,7 @@ const PEOPLE = [
     cost: 6, rapture: 9, disquiet: 1, skills: { social: 0.5 },
     scenes: ['JIM acts out a disastrous rodeo that may never have happened. You laugh until it hurts. On the walk out he asks why you always smell of wet leaves.', 'The stories get taller as his glass empties. Then somebody mentions his old ranch. For a moment the smile leaves his face. You stay after the joke ends.'],
     recruitment: 'JIM listens without laughing. “Food into a hole,” he says. “And I thought my friends were weird.” He offers his truck for collections. You ask him to keep this to himself. “Depends what you’re asking me to keep,” he says.',
-    helpLabel: 'Collect surplus food with JIM', helpDescription: 'Pay $10 toward fuel and collect six bags in his truck.', helpEffects: { money: -10, food: 6, relationships: { jim: 1 }, progress: { jimSuspicion: 1 } },
+    helpLabel: 'Collect surplus food with JIM', helpDescription: 'JIM, sober. Eight bags in his truck. $28 for food and fuel.', helpEffects: { money: -28, food: 8, relationships: { jim: 1 }, progress: { jimSuspicion: 1 } },
     helpText: 'JIM backs the truck up to the collection door. On the drive he invents increasingly ridiculous guests for your dinner party. Then he asks how many people are actually eating this food. You watch the road.'
   },
   {
@@ -596,7 +600,7 @@ const PEOPLE = [
     cost: 4, rapture: -2, disquiet: -3, skills: { practical: 1 },
     scenes: ['ETHAN shows you why the switch failed. You replace it yourself. He says you used to give up before taking things apart. Neither of you makes a joke of it.', 'You hold the door while ETHAN fits the hinge. You talk about someone from school, then about the years since. He notices the new scratches on your arms.'],
     recruitment: 'You take ETHAN as far as the edge of the woods. He sees the tracks, then the impossible weight pressed into the earth. “I can help you build,” he says. “But if someone gets hurt, I’m not keeping quiet.”',
-    helpLabel: 'Repair and plan with ETHAN', helpDescription: 'Work on the wagon and food storage together. Parts cost $4.', helpEffects: { money: -4, disquiet: -5, skills: { practical: 0.75 }, relationships: { ethan: 1 }, progress: { ethanSuspicion: -1 } },
+    helpLabel: 'Repair and plan with ETHAN', helpDescription: 'Work on the wagon and food storage together. Parts cost $4.', helpEffects: { money: -4, disquiet: -5, lifestyle: 3, skills: { practical: 0.75 }, relationships: { ethan: 1 }, progress: { ethanSuspicion: -1 } },
     helpText: 'ETHAN tightens the axle and draws a stronger support for the storage shelf. You admit how quickly the food loads are growing. He measures again. He wants facts before reassurances.'
   },
   {
@@ -623,20 +627,20 @@ ACTIONS.push(...PEOPLE.flatMap(person => [
     id: `talk_${person.key}`, system: 'social', label: person.activity, category: 'town', subcategory: 'friendship', duration: 3,
     description: person.activityDescription, requirement: 18,
     when: available(s => f(s, `met${person.flag}`) && s.money >= person.cost), weight: s => bond(s, person.key) < 5 ? 11 : 4, desire: person.key === 'jim' ? 0.84 : 0.55,
-    effects: () => ({ money: -person.cost, rapture: person.rapture, disquiet: person.disquiet, skills: person.skills, relationships: { [person.key]: 2, town: 0.5 }, progress: { [`${person.key}Suspicion`]: -1 } }),
+    effects: () => ({ money: -person.cost, lifestyle: person.key === 'ethan' ? 2 : person.key === 'jim' ? -1 : 1, rapture: person.rapture, disquiet: person.disquiet, skills: person.skills, relationships: { [person.key]: 2, town: 0.5 }, progress: { [`${person.key}Suspicion`]: -1 } }),
     outcome: s => scene(person.name, vary(s, person.scenes, `talk_${person.key}`))
   },
   {
     id: `recruit_${person.key}`, system: 'social', label: `Ask ${person.name} to help`, category: 'town', subcategory: 'recruitment', duration: 3,
     description: 'Explain enough for a real decision. They may help, or decide that somebody ought to know.', requirement: 30,
-    when: available(s => f(s, `met${person.flag}`) && !f(s, `recruited${person.flag}`) && !f(s, `reported${person.flag}`) && bond(s, person.key) >= 5 && p(s, 'feeds') >= 1), weight: 16, desire: 0.73,
+    when: available(s => f(s, `met${person.flag}`) && !f(s, `recruited${person.flag}`) && !f(s, `reported${person.flag}`) && bond(s, person.key) >= 4 && p(s, 'feeds') >= 1), weight: 16, desire: 0.73,
     effects: () => ({ rapture: -2, disquiet: 2, relationships: { [person.key]: 1 }, progress: { [`${person.key}Suspicion`]: 1 }, flags: { [`recruited${person.flag}`]: true } }),
     outcome: () => scene('Asking for help', person.recruitment, 'scene')
   },
   {
     id: `help_${person.key}`, system: 'social', label: person.helpLabel, category: 'town', subcategory: 'help', duration: 3,
     description: person.helpDescription, requirement: 13,
-    when: available(s => f(s, `recruited${person.flag}`) && s.money >= -(person.helpEffects.money || 0)), weight: 8, desire: 0.63,
+    when: available(s => f(s, `recruited${person.flag}`) && !f(s, `reported${person.flag}`) && (person.key !== 'jim' || f(s, 'knowsSoberJim')) && s.money >= -(person.helpEffects.money || 0)), weight: 8, desire: 0.63,
     effects: () => person.helpEffects,
     outcome: () => scene(person.name, person.helpText)
   },
@@ -683,7 +687,7 @@ export const STAGE1_DREAM = 'you fall asleep beside PERSON\n\nyou dream of hatin
 // Compressed scene prose. These replacements preserve each action's mechanics
 // and presentation; the author's opening remains unchanged above.
 export const ACTION_PROSE = {
-  feed_friend: 'a week.\n\nthe bag lowered.\n\n**feeding**\n\n*thank you*\n\nyour own stomach, still empty. the relief everywhere.',
+  feed_friend: 'back here.\n\nthe bag lowered.\n\n**feeding**\n\n*thank you*\n\nyour own stomach, still empty. the relief everywhere.',
   arrange_surplus: 'the deposit. your name on the list.\n\n“same time. bring the crates back.”',
   buy_cooler: 'old salt in the seal.\n\nyou scrub until the water runs clear. close the lid.',
   repair_shelter: 'roof patched. floor lifted.\n\nhe unfolds beneath it.\n\nyou had stopped looking at his size.',
@@ -708,9 +712,8 @@ export const ACTION_PROSE = {
   promotion: 'a larger salary. your name beside the system.\n\nits next failure, yours to explain.\n\nyou accept.',
   build_model: s => [
     'data in. simulated orders out.\n\nyou check the numbers you already seem to know.',
-    'position limits. a stop switch.\n\nyou resent them.\n\ntest them anyway.',
-    'a quote. a decision. an order.\n\nyou lift your hands.\n\nanother.'
-  ][Math.min(2, p(s, 'model'))],
+    'limits. a stop switch.\n\nyou test both.\n\nan order. another.\n\nyour hands off the keys.'
+  ][Math.min(1, p(s, 'model'))],
   launch_model: 'an order fills. closes.\n\nyour money.\n\nyou take the wagon out. return.\n\nstill working.\n\nfor a moment, the whole world seems this possible.',
   meet_person: 'her book held open.\n\n“PERSON.”\n\nshe would like to see you again.\n\nthe walk home. every part of it.',
   cafe_person: 'she says yes.\n\ncoffee finished.\n\nneither cup cleared.',
@@ -762,6 +765,38 @@ for (const action of ACTIONS) {
     if (!repeats) return { ...outcome, text: variants.at(-1) };
     return { ...(typeof outcome === 'string' ? { title: action.label } : outcome), text: variants[(repeats - 1) % variants.length] };
   };
+}
+
+
+// The daily scheduler uses these windows and intentions. A menu visit itself
+// remains untimed; only a selected opportunity occupies an active window.
+for (const action of ACTIONS) {
+  if (!action.timeSlots) {
+    action.timeSlots = ['morning', 'daytime', 'evening'];
+    if (action.system === 'fintech') action.timeSlots = ['morning', 'evening'];
+    if (action.category === 'town' || action.category === 'relationship') action.timeSlots = ['daytime', 'evening'];
+    if (['buy_food', 'arrange_surplus', 'collect_surplus', 'buy_wagon', 'buy_cooler'].includes(action.id)) action.timeSlots = ['morning', 'daytime'];
+    if (['temporary_shift', 'job_interview', 'promotion', 'salaried_work', 'report_mistake', 'correct_work_lie', 'help_jim', 'help_ethan'].includes(action.id)) action.timeSlots = ['daytime'];
+    if (['talk_jim', 'time_person', 'television', 'rest', 'attend_meetup', 'enroll_course', 'course_lesson'].includes(action.id)) action.timeSlots = ['evening'];
+    if (action.id === 'jim_sober') action.timeSlots = ['morning'];
+    if (['meet_wendy', 'talk_wendy', 'help_wendy', 'recruit_wendy', 'reassure_wendy'].includes(action.id)) action.timeSlots = ['daytime'];
+  }
+  action.intent ||= action.category === 'care' ? 'care'
+    : action.category === 'learning' || ['library', 'course_lesson'].includes(action.id) ? 'learning'
+    : action.category === 'work' ? 'work'
+    : action.category === 'avoidance' ? 'pleasure'
+    : action.category === 'town' || action.category === 'relationship' || action.system === 'social' ? 'social'
+    : action.id === 'make_budget' ? 'money' : 'home';
+  if (action.meal || action.id === 'accept_help') {
+    action.oncePerDay = true;
+    action.opportunityGroup = 'meal';
+    action.timeSlots = ['morning', 'evening'];
+    if (action.id === 'meal_sun') action.timeSlots = ['evening'];
+    if (!action.meal) action.meal = { tasty: true, healthy: true };
+    action.intent = 'home';
+  }
+  if (['learn_code', 'study_math', 'study_finance', 'learn_practical'].includes(action.id)) action.challenge = 2;
+  if (['clean_room', 'make_budget'].includes(action.id)) action.challenge = 3;
 }
 
 /** These scenes interrupt the ordinary loop and require a response. */

@@ -8,6 +8,10 @@ const scene = (title, text) => ({ title, text });
 const visits = (s, id) => s.progress?.[`visits_${id}`] ?? (s.history || []).filter(entry => entry.id === id).length;
 const vary = (s, options, id) => options[visits(s, id) % options.length];
 const available = predicate => s => !s.crisis && predicate(s);
+const freeToday = (s, key) => !Object.hasOwn(s.progress || {}, key) || s.hours - p(s, key) >= 24;
+const stamp = (s, key) => ({ [key]: s.hours - p(s, key) });
+const foolTrust = s => !f(s, 'betrayedFoolName') && !f(s, 'blamedFool');
+
 
 export const TOWN_ACTIONS = [
   {
@@ -58,7 +62,7 @@ export const TOWN_ACTIONS = [
     description: 'A loose step … MADAME has tools.', requirement: 16, challenge: 3,
     when: available(s => f(s, 'metMadame')), weight: 3, desire: 0.4,
     personality: { empathy: 0.035, resolve: 0.035 },
-    effects: () => ({ rapture: -3, disquiet: -1, skills: { practical: 0.3 }, relationships: { madame: 1, town: 0.25 }, progress: { brothelRepairs: 1 } }),
+    effects: () => ({ rapture: -3, disquiet: -1, lifestyle: 3, skills: { practical: 0.5 }, relationships: { madame: 1, town: 0.25 }, progress: { brothelRepairs: 1 } }),
     outcome: s => scene('Small repairs', vary(s, [
         'The drawer opens … old receipts, spare buttons.',
         'A hook secured … her winter coat holds.',
@@ -132,7 +136,7 @@ export const TOWN_ACTIONS = [
   {
     id: 'jokes_fool', system: 'social', label: 'Trade terrible jokes', category: 'social', subcategory: 'fool', duration: 1,
     description: 'She has heard worse … from you.', requirement: 6,
-    when: available(s => f(s, 'metFool')), weight: 3, desire: 0.73,
+    when: available(s => f(s, 'metFool') && foolTrust(s)), weight: 3, desire: 0.73,
     personality: { empathy: 0.025, resolve: 0.015 },
     effects: () => ({ rapture: 6, disquiet: -1, skills: { social: 0.2 }, relationships: { fool: 1 }, progress: { foolJokes: 1 } }),
     outcome: s => scene('THE FOOL', vary(s, [
@@ -153,7 +157,7 @@ export const TOWN_ACTIONS = [
   {
     id: 'cards_fool', system: 'social', label: 'Play cards with THE FOOL', category: 'social', subcategory: 'fool', duration: 2,
     description: 'No money … just cards.', requirement: 12,
-    when: available(s => f(s, 'metFool')), weight: 3, desire: 0.56,
+    when: available(s => f(s, 'metFool') && foolTrust(s)), weight: 3, desire: 0.56,
     personality: { caution: 0.025 },
     effects: () => ({ rapture: 4, skills: { math: 0.25 }, relationships: { fool: 1 }, progress: { foolGames: 1 } }),
     outcome: s => scene('A small game', vary(s, [
@@ -179,11 +183,11 @@ export const TOWN_ACTIONS = [
     outcome: () => scene('THE SUN', 'Forty-six … large, voluptuous. At ease.\n\nWarm hands. A loosened shoulder … she knows where.\n\n“Come sit, darling.”'),
   },
   {
-    id: 'company_sun', system: 'social', label: 'Spend an hour with THE SUN', category: 'social', subcategory: 'sun', duration: 1,
-    description: 'An hour … a shoulder, if wanted. $30.', requirement: 10,
-    when: available(s => f(s, 'metSun') && s.money >= 30), weight: 3, desire: 0.82,
+    id: 'company_sun', system: 'social', label: 'Private company with THE SUN — $30', category: 'social', subcategory: 'sun', duration: 1,
+    description: 'Her private hour costs $30. Touch only if wanted. One appointment a day.', requirement: 10,
+    when: available(s => f(s, 'metSun') && !f(s, 'cancelledForSun') && s.money >= 30 && freeToday(s, 'sunCompanyAt')), weight: 3, desire: 0.82,
     personality: { empathy: 0.025 },
-    effects: () => ({ money: -30, rapture: 12, disquiet: -3, relationships: { sun: 1 }, progress: { sunCompany: 1 } }),
+    effects: s => ({ money: -30, rapture: 25, disquiet: -3, relationships: { sun: 1 }, progress: { sunCompany: 1, ...stamp(s, 'sunCompanyAt') } }),
     outcome: s => scene('An hour', vary(s, [
         '“May I?” … your hand opens.',
         'Your head on her shoulder … a long breath.',
@@ -201,10 +205,10 @@ export const TOWN_ACTIONS = [
   },
   {
     id: 'meal_sun', system: 'social', label: 'Share THE SUN’s supper', category: 'social', subcategory: 'sun', duration: 2,
-    description: 'A second bowl … $6.', requirement: 4,
-    when: available(s => f(s, 'metSun') && s.money >= 6), weight: s => s.stats.hunger > 30 ? 5 : 2, desire: 0.71,
+    description: 'Supper for $6. Food and company. Lifestyle improves; Hunger stays.', requirement: 4,
+    when: available(s => f(s, 'metSun') && s.money >= 6), weight: s => (s.lifestyle ?? 40) < 45 ? 4 : 2, desire: 0.71,
     personality: { empathy: 0.02 },
-    effects: () => ({ money: -6, hunger: -26, rapture: 7, disquiet: -1, relationships: { sun: 1 }, progress: { sunMeals: 1 } }),
+    effects: () => ({ money: -6, lifestyle: 4, rapture: 12, disquiet: -1, relationships: { sun: 1 }, progress: { sunMeals: 1 } }),
     outcome: s => scene('Supper', vary(s, [
         'Soup … the bowl warm underneath.',
         'Bread torn by hand … half for you.',
@@ -225,7 +229,7 @@ export const TOWN_ACTIONS = [
     description: 'Cups. Curtains … the last lock.', requirement: 14, challenge: 3,
     when: available(s => f(s, 'metMadame') && bond(s, 'madame') >= 2), weight: 2, desire: 0.39,
     personality: { empathy: 0.035, resolve: 0.03 },
-    effects: () => ({ rapture: -2, disquiet: -2, skills: { practical: 0.2 }, relationships: { madame: 1, town: 0.25 }, progress: { brothelClosings: 1 } }),
+    effects: () => ({ rapture: -2, disquiet: -2, lifestyle: 2, skills: { practical: 0.3 }, relationships: { madame: 1, town: 0.25 }, progress: { brothelClosings: 1 } }),
     outcome: s => scene('Closing time', vary(s, [
         'Lipstick on the cups … hot water, then none.',
         'Coins under cushions … into MADAME’s jar.',
@@ -242,6 +246,78 @@ export const TOWN_ACTIONS = [
       ], 'close_brothel')),
   },
 ];
+
+
+// Paid appointments are separate from introductions, tea, jokes, and ordinary
+// friendship. Money never replaces the trust required to be welcome here.
+TOWN_ACTIONS.push(
+  {
+    id: 'company_priestess', system: 'social', label: 'Private company with THE PRIESTESS — $40', category: 'social', subcategory: 'priestess', duration: 2,
+    description: 'Her private time, $40. A ritual if you want it. One appointment a day.', requirement: 10,
+    when: available(s => f(s, 'metPriestess') && s.money >= 40 && freeToday(s, 'priestessCompanyAt')), weight: 4, desire: 0.88,
+    paidCompany: { person: 'priestess', fee: 40 },
+    effects: s => ({ money: -40, rapture: 26, disquiet: 2, relationships: { priestess: 1 }, progress: { priestessCompany: 1, ...stamp(s, 'priestessCompanyAt') } }),
+    outcome: s => scene('THE PRIESTESS', vary(s, [
+      'The price agreed. A candle lit.\n\n“Tell me what you want.”',
+      'Your hand in hers … no prediction this time.',
+      'She asks before touching you.\n\nYou answer without a joke.',
+      '“A sign,” she whispers.\n\nYou are happy enough not to ask.',
+      'Her sleeve at your cheek … then her hand.',
+      'The candle nearly gone.\n\nShe tells you the time.',
+    ], 'company_priestess')),
+  },
+  {
+    id: 'company_fool', system: 'social', label: 'Private company with THE FOOL — $35', category: 'social', subcategory: 'fool', duration: 2,
+    description: 'Her private time, $35. Laughter, closeness, a clear ending. One appointment a day.', requirement: 8,
+    when: available(s => f(s, 'metFool') && foolTrust(s) && s.money >= 35 && freeToday(s, 'foolCompanyAt')), weight: 4, desire: 0.91,
+    paidCompany: { person: 'fool', fee: 35 },
+    effects: s => ({ money: -35, rapture: 24, disquiet: -1, relationships: { fool: 1 }, progress: { foolCompany: 1, ...stamp(s, 'foolCompanyAt') } }),
+    outcome: s => scene('THE FOOL', vary(s, [
+      'The fee. Your nervous hands.\n\n“You can put those down.”',
+      'A joke at the wrong moment … you both need a minute.',
+      'She asks what feels good.\n\nWaits for a real answer.',
+      'Your laugh against her shoulder … hers arriving after.',
+      'No punchline.\n\nYou stay close.',
+      '“Time.”\n\nOne last joke … the door opened for you.',
+    ], 'company_fool')),
+  },
+  {
+    id: 'repair_fool_trust', system: 'social', label: 'Apologize to THE FOOL', category: 'social', subcategory: 'repair', duration: 2,
+    description: 'Her name, her confidence. Admit what you did without asking for company.', requirement: 8, challenge: 3,
+    when: available(s => f(s, 'metFool') && !foolTrust(s)), weight: 14, desire: 0.28,
+    personality: { honesty: 0.08, empathy: 0.08, resolve: 0.05 },
+    effects: () => ({ rapture: -5, disquiet: 3, relationships: { fool: 1 }, flags: { betrayedFoolName: false, blamedFool: false, apologizedToFool: true } }),
+    outcome: () => scene('No joke', 'you name what you did.\n\nshe lets you finish.\n\n“don’t do it again.”'),
+  },
+  {
+    id: 'repair_sun_promise', system: 'social', label: 'Answer THE SUN about her appointment', category: 'social', subcategory: 'repair', duration: 2,
+    description: 'You cancelled for her. Admit it was her decision to make.', requirement: 8, challenge: 3,
+    when: available(s => f(s, 'metSun') && f(s, 'cancelledForSun')), weight: 14, desire: 0.3,
+    personality: { honesty: 0.08, empathy: 0.1, resolve: 0.05 },
+    effects: () => ({ rapture: -4, disquiet: 2, relationships: { sun: 1 }, flags: { cancelledForSun: false, apologizedToSun: true } }),
+    outcome: () => scene('Her time', '“i know you meant well.”\n\nthen the amount she lost.\n\nyou listen to both.'),
+  },
+  {
+    id: 'house_maintenance', system: 'social', label: 'Take a paid repair job for MADAME — $24', category: 'work', subcategory: 'handiwork', duration: 3,
+    description: 'She trusts your work. A small repair job pays $24; another in three days.', requirement: 16, challenge: 2,
+    when: available(s => f(s, 'metMadame') && p(s, 'brothelRepairs') >= 2 && bond(s, 'madame') >= 3 && (!Object.hasOwn(s.progress || {}, 'madameJobAt') || s.hours - p(s, 'madameJobAt') >= 72)), weight: 6, desire: 0.57,
+    effects: s => ({ money: 24, rapture: -2, lifestyle: 2, skills: { practical: 0.5 }, relationships: { madame: 0.5 }, progress: { madameJobs: 1, ...stamp(s, 'madameJobAt') } }),
+    outcome: s => scene('Paid work', vary(s, [
+      'the latch holds.\n\nshe tests it. pays you.',
+      '“same rate?”\n\nyou agree before starting.',
+      'the receipt in her drawer.\n\nyour money counted twice.',
+      'one job finished.\n\nshe shows you the next. another day.',
+    ], 'house_maintenance')),
+  },
+);
+for (const action of TOWN_ACTIONS) {
+  action.timeSlots = ['evening'];
+  action.intent = action.category === 'work' ? 'work' : action.paidCompany || action.id === 'company_sun' ? 'pleasure' : 'social';
+  if (['help_madame', 'house_maintenance'].includes(action.id)) action.timeSlots = ['daytime'];
+  if (['visit_brothel', 'tea_madame', 'reading_priestess', 'question_priestess'].includes(action.id)) action.timeSlots = ['daytime', 'evening'];
+  if (action.id === 'company_sun') action.paidCompany = { person: 'sun', fee: 30 };
+  if (action.id === 'meal_sun') action.meal = { tasty: true, healthy: true };
+}
 
 export const TOWN_EVENTS = [
   {
