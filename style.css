@@ -4,3 +4,4 @@
 #controls{touch-action:manipulation}#controls button{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}#stack{overflow:hidden}#desktop{min-height:100dvh}#controls button[aria-disabled=true]{cursor:default}@media(max-width:540px){#desktop{background:#fff}}
 
 dialog{text-transform:lowercase}dialog h1{font-weight:normal}dialog button{font-weight:bold}#offer-title{font-weight:bold;text-transform:none}#toast{text-transform:lowercase}
+#attribute-title,#attribute-text{font-weight:bold}#attribute-text{white-space:pre-line}

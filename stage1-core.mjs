@@ -1,20 +1,38 @@
 import * as CONTENT from './stage1-content.mjs';
 const { INTRO, ACTIONS } = CONTENT;
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+export const ATTRIBUTE_KEYS = ['disquiet', 'rapture', 'choice', 'hunger', 'money'];
+export const DEFAULT_RULES = Object.freeze({ hungerRaptureThreshold: 10 });
 const STAT_KEYS = ['rapture', 'disquiet', 'choice', 'hunger'];
-const SKILL_KEYS = ['coding', 'finance', 'social', 'practical'];
-const RELATIONSHIP_KEYS = ['friend', 'person', 'town'];
+const SKILL_KEYS = ['coding', 'math', 'finance', 'social', 'practical'];
+const RELATIONSHIP_KEYS = ['friend', 'person', 'town', 'jim', 'ethan', 'wendy', 'madame', 'priestess', 'fool', 'sun'];
+const PERSONALITY_KEYS = ['honesty', 'empathy', 'resolve', 'caution'];
+const HELPERS = [{ id: 'jim', name: 'GRINGO JIM', flag: 'Jim' }, { id: 'ethan', name: 'ETHAN', flag: 'Ethan' }, { id: 'wendy', name: 'WENDY', flag: 'Wendy' }];
 const MAX_HISTORY = 1200;
 const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const round = n => Math.round(n * 1000) / 1000;
 const clone = value => JSON.parse(JSON.stringify(value));
 const evaluate = (value, state, fallback = 0) => typeof value === 'function' ? value(state) : value ?? fallback;
 const actionMap = new Map(ACTIONS.map(action => [action.id, action]));
+const storyEvents = CONTENT.STORY_EVENTS || [];
+const eventMap = new Map(storyEvents.map(event => [event.id, event]));
+for (const event of storyEvents) for (const option of event.options) actionMap.set(option.id, { category: 'story', subcategory: event.id, duration: 0.5, ...option, eventId: event.id });
+
+export function attributeDescription(stat, state) {
+  const descriptions = {
+    disquiet: 'Disquiet is gained and lost as appropriate to the circumstance.\n\nAt the end of each day, you lose Rapture equal to your Disquiet total.',
+    rapture: 'Rapture is gained and lost as appropriate to the circumstance.\n\nSometimes when you make a decision you must sacrifice it.',
+    choice: 'You gain Choice by making decisions where you sacrifice Rapture.\n\nYou lose Choice under mysterious circumstances.',
+    hunger: `At the end of each day, Hunger exceeding ${state?.rules?.hungerRaptureThreshold ?? DEFAULT_RULES.hungerRaptureThreshold} will be subtracted from your Rapture total.`,
+    money: 'Money is earned and spent as appropriate to the circumstance.\n\nThis is ordinary money, measured in dollars.',
+  };
+  return descriptions[stat] || '';
+}
 const SYSTEMS = [
-  { id: 'local', label: 'Your friend', unlocked: s => (s.progress.feeds || 0) >= 1, hint: 'First, bring your friend something to eat.' },
-  { id: 'fintech', label: 'Fintech', unlocked: s => Boolean(s.flags.course), hint: 'A course could turn what you are learning into work.' },
-  { id: 'social', label: 'People', unlocked: s => Boolean(s.flags.metPerson), hint: 'There is someone in town you have not met yet.' },
+  { id: 'local', label: 'Home and your friend', unlocked: () => true, hint: 'First, return home.' },
+  { id: 'fintech', label: 'Work and learning', unlocked: () => true, hint: 'First, return home.' },
+  { id: 'social', label: 'People', unlocked: s => (s.progress.townVisits || 0) > 0 || Boolean(s.flags.metPerson), hint: 'Go into town. There are people you know, and people you have not met.' },
 ];
 
 const WAIT = {
@@ -55,7 +73,7 @@ const FINISH = {
   effects: () => ({ rapture: 12, disquiet: -5 }),
   outcome: () => ({ title: 'A larger life.', text: 'There is food for tomorrow. There is work you know how to do, and someone who expects to see you again. Beneath the trees, GLIZGLAT dreams a dream you almost understand.\n\nYou have made a life around the impossible. Keeping it will be the next thing.\n\nSTAGE 1 COMPLETE' }),
 };
-actionMap.set(FINISH.id, FINISH);
+actionMap.set(FINISH.id, actionMap.has('stage1_complete') ? { ...actionMap.get('stage1_complete'), id: FINISH.id } : FINISH);
 
 function hashSeed(seed) {
   let value = 2166136261;
@@ -71,7 +89,40 @@ function random(state) {
 }
 
 export function appetiteRate(hours) {
-  return 1.7 + Math.min(1.4, 1.4 * Math.max(0, hours) / 160);
+  // Personal hunger grows between meals. The friend's growing meal schedule
+  // is separate, so eating dinner cannot postpone feeding him.
+  return 1;
+}
+
+export function friendCare(state) {
+  const intervalDays = CONTENT.careInterval?.(state) ?? 7;
+  const foodRequired = CONTENT.careFoodRequired?.(state) ?? 1;
+  const care = state.care || { lastFedAt: 0, nextFeedAt: 168 };
+  return { ...care, intervalDays, foodRequired, capacity: state.flags.wagon ? 8 : 2,
+    dueIn: round(care.nextFeedAt - state.hours), overdue: Math.max(0, round(state.hours - care.nextFeedAt)) };
+}
+
+function friendHungerFloor(state) {
+  const overdue = friendCare(state).overdue;
+  return overdue > 0 ? clamp(35 + overdue * 2.5) : 0;
+}
+
+export function taskSuccessChance(state, action) {
+  const task = action.task;
+  if (!task) return 1;
+  const traits = state.personality || {};
+  const practice = Math.min(0.12, state.history.filter(entry => entry.id === action.id).length * 0.015);
+  const affinity = task.skill === 'social' ? (traits.empathy || 0) * 0.12 + (traits.honesty || 0) * 0.08
+    : (traits.resolve || 0) * 0.12 + (traits.caution || 0) * 0.1;
+  return clamp(0.72 - Number(task.difficulty || 0.4) * 0.4 + (state.skills[task.skill] || 0) * 0.055 + practice + affinity, 0.25, 0.97);
+}
+
+function emotionalEffect(state, action, stat, amount) {
+  const p = state.personality || {};
+  if (stat === 'choice') return amount * (1 + (p.resolve || 0) * 0.18);
+  if (stat === 'disquiet') return amount * (1 + (p.caution || 0) * 0.18 - (p.resolve || 0) * 0.12 + (Number(evaluate(action.ethics, state, 0)) > 0 ? (p.honesty || 0) * 0.2 : 0));
+  if (stat === 'rapture') return amount * (1 + (['relationship', 'social', 'care', 'story'].includes(action.category) ? (p.empathy || 0) * 0.2 : (p.resolve || 0) * 0.1));
+  return amount;
 }
 
 /** The fiction's calendar is independent of the device clock and timezone. */
@@ -86,18 +137,21 @@ export function gameDate(hours = 0) {
 function timeHunger(state, duration) {
   // The same elapsed-time trajectory applies to every seed. Inventions can
   // ease the work of care, but do not randomly change the friend's appetite.
-  const start = state.hours;
-  const end = start + duration;
-  const integral = x => x <= 160 ? 1.7 * x + 1.4 * x * x / 320 : 1.7 * 160 + 1.4 * 80 + 3.1 * (x - 160);
-  return integral(end) - integral(start);
+  return appetiteRate(state.hours) * duration;
 }
 
-export function createGame(seed = Date.now()) {
+export function createGame(seed = Date.now(), rules = {}) {
+  const hungerRaptureThreshold = rules.hungerRaptureThreshold ?? DEFAULT_RULES.hungerRaptureThreshold;
+  if (!Number.isFinite(hungerRaptureThreshold) || hungerRaptureThreshold < 0) throw new RangeError('The Hunger threshold must be a nonnegative number.');
   return {
     version: SAVE_VERSION, seed: String(seed), rng: hashSeed(seed), phase: 'intro', introIndex: 0,
-    turn: 0, hours: 0, stats: { rapture: 14, disquiet: 38, choice: 64, hunger: 24 },
-    money: 20, food: 0, skills: { coding: 0, finance: 0, social: 0, practical: 0 },
-    relationships: { friend: 0, person: 0, town: 0 }, flags: {}, progress: { feeds: 0, danger: 0 },
+    rules: { hungerRaptureThreshold },
+    turn: 0, hours: 0, stats: { rapture: 24, disquiet: 4, choice: 64, hunger: 16 },
+    money: 20, food: 0, skills: { coding: 0, math: 0, finance: 0, social: 0, practical: 0 },
+    relationships: { friend: 0, person: 0, town: 0, jim: 0, ethan: 0, wendy: 0, madame: 0, priestess: 0, fool: 0, sun: 0 }, flags: {}, progress: { feeds: 0, danger: 0 },
+    care: { lastFedAt: 0, nextFeedAt: 168 },
+    personality: { honesty: 0, empathy: 0, resolve: 0, caution: 0 },
+    pendingEvent: null, completedEvents: [], lastEventTurn: -3,
     history: [], journal: [], offers: [], crisis: null, lastOutcome: null,
   };
 }
@@ -112,7 +166,8 @@ function systemUnlocked(system, state) { return state.phase !== 'intro' && syste
 
 function systemActions(state, systemId) {
   const system = SYSTEMS.find(item => item.id === systemId);
-  if (!system || !systemUnlocked(system, state) || state.phase !== 'playing' || state.crisis) return [];
+  if (!system || !systemUnlocked(system, state) || state.phase !== 'playing' || state.crisis || state.pendingEvent) return [];
+  if (ACTIONS.some(action => action.system)) return ACTIONS.filter(action => action.system === systemId && eligible(action, state) && !action.id.startsWith('crisis_'));
   const canShow = id => actionMap.has(id) && eligible(actionMap.get(id), state);
   const first = ids => ids.find(canShow);
   let ids;
@@ -138,7 +193,7 @@ function systemActions(state, systemId) {
 }
 
 function mainChoiceBlocked(state) {
-  return state.phase === 'playing' && (currentRequirement(WAIT, state) > state.stats.choice || state.offers.some(id => {
+  return state.phase === 'playing' && (!state.pendingEvent && currentRequirement(WAIT, state) > state.stats.choice || state.offers.some(id => {
     const action = actionMap.get(id);
     return action && currentRequirement(action, state) > state.stats.choice;
   }));
@@ -151,10 +206,10 @@ function revealedStats(state) {
   const used = stat => Boolean(state.flags[`${stat}Discovered`]) || state.journal.some(entry => entry.changes?.some(change => change.stat === stat && change.amount !== 0));
   // Earlier compatible saves may predate consequence history. Different
   // starting values after a committed turn still record that these were used.
-  const oldRapture = state.turn > 0 && state.stats.rapture !== 14;
-  const oldDisquiet = state.turn > 0 && state.stats.disquiet !== 38;
-  return STAT_KEYS.filter(stat => stat === 'hunger' || stat === 'choice'
-    ? stat === 'hunger' || Boolean(state.flags.choiceDiscovered) || mainChoiceBlocked(state)
+  const oldRapture = state.turn > 0 && state.stats.rapture !== 24;
+  const oldDisquiet = state.turn > 0 && state.stats.disquiet !== 4;
+  return ATTRIBUTE_KEYS.filter(stat => stat === 'hunger' || stat === 'money' || stat === 'choice'
+    ? stat !== 'choice' || Boolean(state.flags.choiceDiscovered) || mainChoiceBlocked(state)
     : used(stat) || (stat === 'rapture' ? oldRapture : oldDisquiet));
 }
 
@@ -167,7 +222,7 @@ export function inspectSystem(state, systemId, visibleActionIds) {
 
 function currentRequirement(action, state) {
   if (typeof action.requirement === 'function') return Math.round(clamp(action.requirement(state)));
-  if (action.category === 'crisis') return Math.round(clamp(action.requirement || 0));
+  if (action.category === 'crisis' || action.eventId) return Math.round(clamp(action.requirement || 0));
   const history = state.history.filter(entry => entry.id === action.id).length;
   const categorySkill = { learning: 'coding', career: 'finance', work: 'finance', social: 'social', relationship: 'social', care: 'practical', practical: 'practical' }[action.category];
   const practice = Math.min(7, history * 1.5) + (categorySkill ? Math.min(6, state.skills[categorySkill] * 0.6) : 0);
@@ -179,7 +234,16 @@ function currentRequirement(action, state) {
 }
 
 function blockedReason(action, state) {
+  if (state.pendingEvent && action.eventId !== state.pendingEvent) return 'You have to answer what is happening first.';
+  if (action.eventId && action.eventId !== state.pendingEvent) return 'That conversation is not happening now.';
   if ((action.id === FINISH.id || action.id === 'stage1_complete') && !stageReady(state)) return 'Finish the commitments below and bring Hunger below 75 first.';
+  if (!action.eventId && !eligible(action, state)) return 'That decision is not available in these circumstances.';
+  if (['feed_friend', 'stock_feeder'].includes(action.id)) {
+    const care = friendCare(state);
+    if (care.dueIn > 12) return 'Your friend is still full. There is time for your own life.';
+    const load = Math.max(care.foodRequired, -Number(evaluate(action.effects, state, {}).food || 0));
+    if (load > care.capacity) return 'You need a wagon to bring enough food in one trip.';
+  }
   const requirement = currentRequirement(action, state);
   if (state.stats.choice < requirement) return `Requires ${requirement} Choice. That is very hard for you to do.`;
   if (action.id === 'wait' && state.crisis) return 'You cannot settle while the shared pain is becoming unbearable.';
@@ -204,13 +268,16 @@ function blinking(action, state) {
 }
 
 function neglectChanges(state, selectedId) {
+  if (state.pendingEvent) return [];
   return state.offers.map(id => actionMap.get(id)).filter(Boolean)
     .filter(action => action.id !== selectedId && blinking(action, state))
     .map(action => ({ stat: 'rapture', amount: -Number(evaluate(action.neglect, state, 1.2)), source: action.id, label: `You let ${action.label.toLowerCase()} pass` }));
 }
 
-function choiceBonus(action, state, effects) {
-  if (!(effects.disquiet > 0) || Number(evaluate(action.ethics, state, 0)) > 0) return 0;
+function choiceBonus(action, state, changes) {
+  // Only Rapture actually sacrificed by this decision qualifies. Daily losses
+  // are applied later and cannot earn Choice just by letting time pass.
+  if (!changes.some(change => change.stat === 'rapture' && change.amount < 0) || Number(evaluate(action.ethics, state, 0)) > 0) return 0;
   const reward = Number(evaluate(action.challenge, state, 3));
   let similarity = 0;
   for (const old of state.history) {
@@ -236,22 +303,44 @@ function appendChange(state, changes, stat, amount, source, label) {
   if (Math.abs(actual) >= 0.0005) changes.push({ stat, amount: actual, source, label });
 }
 
-function resolve(state, action) {
+function advanceTime(state, changes, duration, source) {
+  const end = round(state.hours + duration);
+  const threshold = state.rules?.hungerRaptureThreshold ?? DEFAULT_RULES.hungerRaptureThreshold;
+  // The first day begins at 05:00, so its midnight is 19 elapsed hours.
+  // Split longer decisions at each midnight to use Hunger at that boundary.
+  while (state.hours < end) {
+    const midnight = (Math.floor((state.hours + 5) / 24) + 1) * 24 - 5;
+    const until = Math.min(end, midnight);
+    appendChange(state, changes, 'hunger', timeHunger(state, until - state.hours), source, `${duration} ${duration === 1 ? 'hour passes' : 'hours pass'}`);
+    state.hours = until;
+    appendChange(state, changes, 'hunger', Math.max(0, friendHungerFloor(state) - state.stats.hunger), source, 'Your friend is still waiting for food');
+    if (until === midnight) {
+      appendChange(state, changes, 'rapture', -state.stats.disquiet, source, 'End of day: Disquiet');
+      appendChange(state, changes, 'rapture', -Math.max(0, state.stats.hunger - threshold), source, `End of day: Hunger above ${threshold}`);
+    }
+  }
+}
+
+function resolve(state, action, { preview = false } = {}) {
   // Historical entries are immutable. Copy the containers we change, without
   // repeatedly duplicating the entire illustrated journal for every preview.
   const next = {
     ...state, stats: { ...state.stats }, skills: { ...state.skills },
     relationships: { ...state.relationships }, flags: { ...state.flags }, progress: { ...state.progress },
     history: [...state.history], journal: [...state.journal], offers: [...state.offers],
+    care: { ...(state.care || { lastFedAt: 0, nextFeedAt: 168 }) },
+    personality: { ...state.personality }, completedEvents: [...(state.completedEvents || [])],
     crisis: state.crisis ? { ...state.crisis } : null,
   };
   const changes = [];
-  const effects = evaluate(action.effects, state, {});
-  const duration = Math.max(0, Number(evaluate(action.duration, state, 1)));
-  for (const change of neglectChanges(state, action.id)) appendChange(next, changes, change.stat, change.amount, change.source, change.label);
-  const directDisquiet = Number(effects.disquiet || 0);
+  const succeeded = !action.task || preview || random(next) < taskSuccessChance(state, action);
+  const effects = evaluate(succeeded ? action.effects : action.task.failureEffects, state, {});
+  let duration = Math.max(0, Number(evaluate(action.duration, state, 1)));
+  if (['feed_friend', 'stock_feeder', 'collect_surplus'].includes(action.id) && HELPERS.some(helper => state.flags[`recruited${helper.flag}`])) duration = Math.max(1, duration - 1);
+  for (const change of neglectChanges(state, action.id)) appendChange(next, changes, change.stat, emotionalEffect(state, action, change.stat, change.amount), change.source, change.label);
+  const directDisquiet = emotionalEffect(state, action, 'disquiet', Number(effects.disquiet || 0));
   appendChange(next, changes, 'disquiet', directDisquiet, action.id, directDisquiet > 0 ? 'The difficult part' : 'The world grows quieter');
-  const rawRapture = Number(effects.rapture || 0);
+  const rawRapture = emotionalEffect(state, action, 'rapture', Number(effects.rapture || 0));
   const receptiveRapture = rawRapture > 0 ? rawRapture / (1 + state.stats.disquiet / 50) : 0;
   const anticipatedGain = Math.min(receptiveRapture, 100 - next.stats.rapture);
   const raptureCeiling = next.stats.disquiet - anticipatedGain * 0.2 > 0 ? 99.99 : 100;
@@ -262,29 +351,68 @@ function resolve(state, action) {
     appendChange(next, changes, 'disquiet', -earnedRapture * 0.2, action.id, 'Rapture eases Disquiet');
   }
   const ethics = Math.max(0, Number(evaluate(action.ethics, state, 0)));
-  const bonus = choiceBonus(action, state, effects);
-  appendChange(next, changes, 'choice', bonus, action.id, 'A different difficult decision');
-  appendChange(next, changes, 'choice', -ethics, action.id, 'A promise to yourself becomes smaller');
+  const bonus = emotionalEffect(state, action, 'choice', choiceBonus(action, state, changes));
+  appendChange(next, changes, 'choice', bonus, action.id, 'Rapture sacrificed for a decision');
+  appendChange(next, changes, 'choice', emotionalEffect(state, action, 'choice', -ethics), action.id, 'A promise to yourself becomes smaller');
+  appendChange(next, changes, 'choice', emotionalEffect(state, action, 'choice', Number(effects.choice || 0)), action.id, 'What this decision asks of you');
   // No automatic spending or passive decay of Choice exists. Authored ethical
-  // costs and unfamiliar discomfort are its two sources of change.
+  // costs and decisions that sacrifice Rapture are its two sources of change.
   appendChange(next, changes, 'hunger', Number(effects.hunger || 0), action.id, effects.hunger < 0 ? 'Something is fed' : 'The shared need');
   appendChange(next, changes, 'money', Number(effects.money || 0), action.id, effects.money < 0 ? 'Spent' : 'Earned');
   appendChange(next, changes, 'food', Number(effects.food || 0), action.id, effects.food < 0 ? 'Food for your friend' : 'Supplies');
-  for (const key of SKILL_KEYS) appendChange(next, changes, `skills.${key}`, Number(effects.skills?.[key] || 0), action.id, 'Practice stays with you');
+  for (const key of SKILL_KEYS) {
+    let gain = Number(effects.skills?.[key] || 0);
+    if (gain > 0 && ['coding', 'math', 'finance'].includes(key)) gain *= 1 + Math.min(0.6, (state.progress.feeds || 0) * 0.06) + (state.flags.awakening ? 0.25 : 0);
+    if (gain > 0 && key === 'practical' && state.flags.recruitedEthan) gain *= 1.2;
+    appendChange(next, changes, `skills.${key}`, gain, action.id, state.flags.awakening && ['coding', 'math', 'finance'].includes(key) ? 'You understand it before you finish reading' : 'Practice stays with you');
+  }
   for (const key of RELATIONSHIP_KEYS) appendChange(next, changes, `relationships.${key}`, Number(effects.relationships?.[key] || 0), action.id, 'A bond changes');
   for (const [key, amount] of Object.entries(effects.progress || {})) next.progress[key] = Math.max(0, round((next.progress[key] || 0) + amount));
   Object.assign(next.flags, effects.flags || {});
-  appendChange(next, changes, 'hunger', timeHunger(state, duration), action.id, `${duration} ${duration === 1 ? 'hour passes' : 'hours pass'}`);
+  for (const key of PERSONALITY_KEYS) next.personality[key] = round(clamp((state.personality?.[key] || 0) + Number(evaluate(action.personality, state, {})[key] || 0), -1, 1));
+  if (succeeded && ['feed_friend', 'stock_feeder'].includes(action.id)) {
+    next.care.lastFedAt = round(state.hours + duration);
+    next.care.nextFeedAt = round(Math.max(next.care.lastFedAt, state.care?.nextFeedAt ?? 168) + friendCare(next).intervalDays * 24);
+  } else if (effects.flags?.crisisRelief && next.care.nextFeedAt <= state.hours + duration) {
+    next.care.nextFeedAt = round(state.hours + duration + 24);
+  }
+  if (action.id === 'collect_surplus' && state.flags.recruitedJim) appendChange(next, changes, 'food', 1, action.id, 'Jim knows who has something left over');
+  if (['feed_friend', 'stock_feeder'].includes(action.id) && HELPERS.some(helper => state.flags[`recruited${helper.flag}`])) appendChange(next, changes, 'disquiet', -1, action.id, 'Someone shares the load');
+  advanceTime(next, changes, duration, action.id);
   // Small positive residue must never make 100 Rapture possible. Explicit
   // relief reaches zero naturally via the bounded subtraction above.
   if (next.stats.disquiet > 0 && next.stats.rapture >= 100) appendChange(next, changes, 'rapture', -0.01, action.id, 'There is still Disquiet');
-  next.hours = round(next.hours + duration);
   next.turn += 1;
+  // Keep prose cycling even after the bounded decision history rolls over.
+  const visitKey = `visits_${action.id}`;
+  next.progress[visitKey] = (state.progress[visitKey] ?? state.history.filter(entry => entry.id === action.id).length) + 1;
   next.history.push({ id: action.id, category: action.category || 'other', subcategory: action.subcategory || action.id, turn: next.turn });
   next.history = next.history.slice(-MAX_HISTORY);
-  const result = typeof action.outcome === 'function' ? action.outcome(state, next) : action.outcome;
+  const authoredOutcome = succeeded ? action.outcome : action.task.failureOutcome;
+  const result = typeof authoredOutcome === 'function' ? authoredOutcome(state, next) : authoredOutcome;
   const outcome = typeof result === 'string' ? { title: action.label, text: result } : result || { title: action.label, text: action.description || 'Time passes.' };
-  return { state: next, changes, outcome };
+  return { state: next, changes, outcome, ...(action.task ? { taskSucceeded: succeeded } : {}) };
+}
+
+function helperConsequences(state, result) {
+  for (const helper of HELPERS) {
+    if (!state.flags[`met${helper.flag}`]) continue;
+    const suspicion = state.progress[`${helper.id}Suspicion`] || 0;
+    const warned = `warned${helper.flag}`, reported = `reported${helper.flag}`;
+    if (suspicion >= 10 && state.flags[warned] && !state.flags[reported]) {
+      state.flags[reported] = true;
+      state.flags[`recruited${helper.flag}`] = false;
+      state.progress.danger = (state.progress.danger || 0) + 1;
+      appendChange(state, result.changes, 'disquiet', 8, helper.id, 'Someone has told the town');
+      result.outcome.text += `\n\n${helper.name} has told someone about the trips into the woods. A car slows outside your house. Your friend feels you watching it.`;
+      result.outcome.presentation = 'scene';
+    } else if (suspicion >= 6 && !state.flags[warned]) {
+      state.flags[warned] = true;
+      result.outcome.text += `\n\n${helper.name} no longer believes your explanation. They say they will tell someone if this keeps happening. You still have time to speak honestly and repair their trust.`;
+      result.outcome.presentation = 'scene';
+    }
+    if (suspicion < 6) state.flags[warned] = false;
+  }
 }
 
 function milestones(state) {
@@ -325,7 +453,18 @@ function updateCrisis(state, selectedId) {
 
 function selectOffers(state) {
   if (state.phase !== 'playing') { state.offers = []; return; }
+  if (state.pendingEvent) {
+    state.offers = eventMap.get(state.pendingEvent).options.map(option => option.id);
+    rememberChoice(state); return;
+  }
   if (state.crisis) { state.offers = crisisActions(state).map(action => action.id); rememberChoice(state); return; }
+  if (state.turn - state.lastEventTurn >= 3) {
+    const event = storyEvents.find(event => !state.completedEvents.includes(event.id) && evaluate(event.when, state, true));
+    if (event) {
+      state.pendingEvent = event.id; state.offers = event.options.map(option => option.id);
+      rememberChoice(state); return;
+    }
+  }
   const pool = ACTIONS.filter(action => eligible(action, state) && !['stage1_complete', FINISH.id].includes(action.id) && !action.id.startsWith('crisis_'));
   const selected = [];
   if (stageReady(state)) selected.push(actionMap.has('stage1_complete') ? 'stage1_complete' : FINISH.id);
@@ -355,7 +494,7 @@ function selectOffers(state) {
 
 function offerView(action, state) {
   const lockedReason = blockedReason(action, state);
-  const preview = lockedReason ? [] : resolve(state, action).changes;
+  const preview = lockedReason ? [] : resolve(state, action, { preview: true }).changes;
   const harmful = !lockedReason && (Number(evaluate(action.effects, state, {}).rapture || 0) < 0 || neglectChanges(state, action.id).length > 0);
   return {
     id: action.id, label: action.label, description: String(evaluate(action.description, state, '')), category: action.category || 'other',
@@ -363,6 +502,7 @@ function offerView(action, state) {
     available: !lockedReason, lockedReason, blinking: blinking(action, state),
     thorny: harmful || preview.some(change => change.stat === 'rapture' && change.amount < 0),
     preview, finish: action.id === FINISH.id || action.id === 'stage1_complete',
+    uncertain: Boolean(action.task),
   };
 }
 
@@ -372,10 +512,12 @@ function systemsView(state) {
     const unlocked = systemUnlocked(system, state);
     let text = '', hint = system.hint;
     if (unlocked) {
-      hint = state.crisis ? 'The shared pain needs your attention first.' : 'Looking costs no time. Choosing something here does.';
-      if (system.id === 'local') text = `${state.food} food portions. ${state.progress.feeds || 0} meals shared.\n${state.flags.feederBuilt ? 'A working feeder beneath the shed.' : state.flags.shelter ? 'Your friend has more room beneath the shed.' : 'Your friend is waiting in the woods.'}`;
-      else if (system.id === 'fintech') text = `${state.flags.modelLaunched ? 'A model of your own is helping its first client.' : state.flags.promoted ? 'A system you are responsible for.' : state.flags.employed ? 'A job at the payments company.' : 'An evening course and something to work toward.'}\nCoding ${short(state.skills.coding)}. Finance ${short(state.skills.finance)}.`;
-      else text = `${state.flags.relationship ? 'There is a place beside PERSON now.' : state.flags.romance ? 'Something you have both chosen.' : 'PERSON is becoming part of your life.'}\n${state.relationships.town > 2 ? 'There are people in town who know you.' : 'The town is beginning to feel familiar.'}`;
+      hint = state.pendingEvent ? 'You need to answer first.' : state.crisis ? 'The shared pain needs your attention first.' : 'Looking costs no time. Choosing something here does.';
+      if (system.id === 'local') {
+        const care = friendCare(state);
+        text = `${state.food} bags of food. ${state.progress.feeds || 0} meals brought to your friend.\n${care.dueIn > 12 ? `He will need food in about ${Math.max(1, Math.round(care.dueIn / 24))} days.` : `He needs ${care.foodRequired} bags of food now.`}\n${state.flags.wagon ? 'The wagon takes the weight.' : 'You can carry two bags at a time.'}`;
+      } else if (system.id === 'fintech') text = `${state.flags.modelLaunched ? 'Your automated trader is running under the limits you set.' : state.flags.traderBuilt ? 'The trader needs testing before you trust it with money.' : 'You have a job at the grocery store, and things to learn after work.'}\nCoding ${short(state.skills.coding)}. Math ${short(state.skills.math)}. Markets ${short(state.skills.finance)}.`;
+      else text = `${state.flags.relationship ? 'You and PERSON are together.' : state.flags.metPerson ? 'You keep thinking about PERSON.' : 'People you pass on the street are becoming familiar.'}\n${HELPERS.filter(helper => state.flags[`recruited${helper.flag}`]).map(helper => `${helper.name} is helping.`).join(' ') || 'There are people who might help, once they trust you.'}`;
     }
     return {
       id: system.id, label: system.label, unlocked, hint, text,
@@ -388,17 +530,21 @@ export function getView(state) {
   const intro = INTRO[state.introIndex];
   const last = state.journal.at(-1);
   const mood = state.crisis ? 'The shared pain is becoming unbearable' : state.stats.hunger >= 75 ? 'The hunger presses close' : state.stats.disquiet >= 65 ? 'Every ordinary thing feels difficult' : state.stats.rapture >= 55 ? 'There is room in the world' : 'Something is changing';
+  const event = eventMap.get(state.pendingEvent);
+  const responses = event ? event.options.map(option => offerView(actionMap.get(option.id), state)) : [];
   return {
     phase: state.phase, intro: state.phase === 'intro' ? intro : null,
     title: state.phase === 'intro' ? intro?.title : last?.title || 'The first morning',
     text: state.phase === 'intro' ? intro?.text : last?.text || 'You leave the woods with an emptiness that is no longer entirely yours. There is food to find. There is a life to begin.',
-    mood, chapter: state.flags.promoted && state.flags.relationship ? 'A larger life' : state.flags.employed ? 'An ordinary life, almost' : state.flags.metPerson ? 'Other people' : 'The first days',
+    mood, chapter: state.phase === 'stage2' ? 'Stage 2' : state.flags.relationship ? 'A larger life' : state.flags.modelLaunched ? 'While you are elsewhere' : state.flags.awakening ? 'The world coming alive' : state.flags.metPerson ? 'Other people' : 'The first days',
     offers: state.phase === 'playing' ? state.offers.map(id => actionMap.get(id)).filter(Boolean).map(action => offerView(action, state)) : [],
-    wait: state.phase === 'playing' ? offerView(WAIT, state) : null,
+    wait: state.phase === 'playing' && !event ? offerView(WAIT, state) : null,
+    storyEvent: event ? { id: event.id, title: event.title, text: String(evaluate(event.text, state, '')), options: responses } : null,
     systems: systemsView(state), revealedStats: revealedStats(state),
     presentation: state.phase === 'intro' ? 'scene' : state.lastOutcome?.presentation || last?.presentation || 'log',
     milestones: milestones(state), ready: stageReady(state),
-    day: Math.floor(state.hours / 24) + 1, hour: Math.floor(state.hours % 24), calendar: gameDate(state.hours),
+    day: Math.floor((state.hours + 5) / 24) + 1, hour: gameDate(state.hours).hour, calendar: gameDate(state.hours),
+    care: friendCare(state),
     crisis: state.crisis ? { ...state.crisis, warning: 'You feel your friend’s pain as your own. Stay and care for him, or ask for help. Repeated abandonment will leave both of you weaker and can kill you both.' } : null,
     ending: state.ending || null,
   };
@@ -407,8 +553,8 @@ export function getView(state) {
 export function choose(state, actionId) {
   if (state.phase === 'intro') {
     if (actionId === 'decline' && (state.introIndex === 0 || state.introIndex === 1)) {
-      const text = INTRO[state.introIndex].refusal || (state.introIndex === 0 ? 'you feel yourself immersed in the UNQUIET' : '*i am hungry*');
-      return { state, ok: true, changes: [], outcome: { title: '', text, presentation: 'scene' } };
+      const text = INTRO[state.introIndex].refusal || (state.introIndex === 0 ? 'can you describe this feeling?' : '*I am hungry*');
+      return { state, ok: true, changes: [], outcome: { title: '', text, presentation: 'scene', returnToLine: INTRO[state.introIndex].returnToLine } };
     }
     if (actionId !== 'continue') return { state, ok: false, error: 'Continue the opening first.', changes: [], outcome: null };
     const next = clone(state);
@@ -416,13 +562,35 @@ export function choose(state, actionId) {
     next.introIndex += 1;
     if (next.introIndex >= INTRO.length) {
       next.phase = 'playing'; next.introIndex = INTRO.length;
-      next.journal.push({ turn: 0, hours: 0, title: 'The first morning', text: 'You leave the woods. You are already hungry.\n\nThere is food to find. There is a life to begin.', presentation: 'scene' });
-      next.lastOutcome = { title: 'The first morning', text: 'You leave the woods. You are already hungry.\n\nThere is food to find. There is a life to begin.', presentation: 'scene' };
+      const text = CONTENT.STAGE1_START || 'you wake up from a long nap. you are getting hungry';
+      next.journal.push({ turn: 0, hours: 0, title: 'A long nap', text, presentation: 'log' });
+      next.lastOutcome = { title: 'A long nap', text, presentation: 'log' };
       selectOffers(next);
     }
     return { state: next, ok: true, changes: [], outcome: { title: scene.title, text: scene.text, presentation: 'scene' } };
   }
+  if (state.phase === 'dream' && actionId === 'sleep') {
+    const next = clone(state), changes = [];
+    advanceTime(next, changes, 8, 'sleep');
+    next.turn += 1; next.phase = 'complete'; next.ending = 'stage-one';
+    next.flags.dreamSeen = true;
+    const outcome = { title: 'The dream', text: CONTENT.STAGE1_DREAM || 'you fall asleep beside PERSON.\n\nyou dream of hating every human alive.\n\nthere are no exceptions.\n\nyou wake before you can tell whose hatred it was.', presentation: 'scene' };
+    next.lastOutcome = outcome;
+    next.journal.push({ turn: next.turn, hours: next.hours, actionId, ...outcome, changes });
+    next.journal = next.journal.slice(-200);
+    return { state: next, ok: true, changes, outcome };
+  }
+  if (state.phase === 'complete' && actionId === 'begin_stage2' && state.flags.dreamSeen) {
+    const next = clone(state);
+    next.phase = 'stage2'; next.flags.stage2Started = true;
+    const outcome = { title: 'STAGE 2', text: 'STAGE 2\n\nPERSON is asleep beside you.\n\nsomewhere else, you are awake.', presentation: 'scene' };
+    next.lastOutcome = outcome;
+    next.journal.push({ turn: next.turn, hours: next.hours, actionId, ...outcome, changes: [] });
+    next.journal = next.journal.slice(-200);
+    return { state: next, ok: true, changes: [], outcome };
+  }
   if (state.phase !== 'playing') return { state, ok: false, error: 'This chapter has ended.', changes: [], outcome: null };
+  if (state.pendingEvent && !eventMap.get(state.pendingEvent)?.options.some(option => option.id === actionId)) return { state, ok: false, error: 'You have to choose a response to this event first.', changes: [], outcome: null };
   const throughSystem = SYSTEMS.some(system => systemActions(state, system.id).some(action => action.id === actionId));
   if (actionId !== WAIT.id && !state.offers.includes(actionId) && !throughSystem) return { state, ok: false, error: 'That decision is not available here yet.', changes: [], outcome: null };
   const action = actionId === WAIT.id ? WAIT : actionMap.get(actionId);
@@ -431,13 +599,20 @@ export function choose(state, actionId) {
   if (error) return { state, ok: false, error, changes: [], outcome: null };
   const result = resolve(state, action);
   const next = result.state;
+  if (action.eventId) {
+    next.completedEvents.push(action.eventId);
+    next.pendingEvent = null;
+    next.lastEventTurn = next.turn;
+  }
+  helperConsequences(next, result);
+  if (next.stats.disquiet > 0 && next.stats.rapture >= 100) appendChange(next, result.changes, 'rapture', -0.01, actionId, 'There is still Disquiet');
   if (mainChoiceBlocked(state)) next.flags.choiceDiscovered = true;
   for (const stat of ['rapture', 'disquiet']) if (result.changes.some(change => change.stat === stat && change.amount !== 0)) next.flags[`${stat}Discovered`] = true;
   updateCrisis(next, actionId);
   if (next.phase === 'failed' && actionId === 'crisis_ignore') result.outcome = { title: 'The same silence.', text: 'They follow the sound. They take your friend from the woods.\n\nYou feel a place inside him close. You try to tell him he is not alone, but there is no longer a difference between the pain in him and the pain in you.\n\nWhen GLIZGLAT goes silent, so do you.\n\nYour fates were joined from the first morning.' };
-  else if (actionId === FINISH.id || actionId === 'stage1_complete') { next.phase = 'complete'; next.ending = 'stage-one'; next.offers = []; }
+  else if (actionId === FINISH.id || actionId === 'stage1_complete') { next.phase = 'dream'; next.ending = null; next.offers = []; }
   const newSystems = SYSTEMS.filter(system => !systemUnlocked(system, state) && systemUnlocked(system, next)).map(system => system.id);
-  const majorFlags = ['nameRevealed', 'employed', 'promoted', 'feederBuilt', 'romance', 'relationship', 'modelLaunched', 'stage1Complete'];
+  const majorFlags = ['nameRevealed', 'wagon', 'awakening', 'recruitedJim', 'recruitedEthan', 'recruitedWendy', 'traderBuilt', 'traderTested', 'romance', 'relationship', 'modelLaunched', 'stage1Complete'];
   const major = majorFlags.some(flag => !state.flags[flag] && next.flags[flag]) || !(state.progress.feeds || 0) && (next.progress.feeds || 0) > 0;
   const crisisOnset = !state.crisis && Boolean(next.crisis);
   const fatalWarning = (state.progress.danger || 0) < 3 && (next.progress.danger || 0) >= 3 && next.phase === 'playing';
@@ -445,7 +620,7 @@ export function choose(state, actionId) {
   if (crisisOnset) result.outcome.text += '\n\nThe shared pain is becoming unbearable. Your friend needs care, and you need help. You cannot simply wait it out.';
   if (fatalWarning) result.outcome.text += '\n\nHe is failing. You can feel your body failing with his. Walking away again will kill you both.';
   next.lastOutcome = { ...result.outcome };
-  next.journal.push({ turn: next.turn, hours: next.hours, title: result.outcome.title, text: result.outcome.text, presentation: result.outcome.presentation, unlockedSystems: newSystems, actionId, changes: clone(result.changes) });
+  next.journal.push({ turn: next.turn, hours: next.hours, title: result.outcome.title, text: result.outcome.text, presentation: result.outcome.presentation, unlockedSystems: newSystems, actionId, ...(action.eventId ? { eventId: action.eventId } : {}), ...(action.task ? { taskSucceeded: result.taskSucceeded } : {}), changes: clone(result.changes) });
   next.journal = next.journal.slice(-200);
   selectOffers(next);
   return { ...result, ok: true };
@@ -471,9 +646,10 @@ function safeData(value, depth = 0) {
 
 export function validateSave(value) {
   if (!safeData(value) || !plainObject(value) || value.version !== SAVE_VERSION) return false;
-  if (!['intro', 'playing', 'complete', 'failed'].includes(value.phase)) return false;
+  if (!['intro', 'playing', 'dream', 'complete', 'stage2', 'failed'].includes(value.phase)) return false;
   if (typeof value.seed !== 'string' || !Number.isInteger(value.rng) || value.rng <= 0 || value.rng > 4294967295) return false;
   if (!Number.isInteger(value.turn) || value.turn < 0 || !Number.isFinite(value.hours) || value.hours < 0) return false;
+  if (value.rules !== undefined && (!plainObject(value.rules) || !Number.isFinite(value.rules.hungerRaptureThreshold) || value.rules.hungerRaptureThreshold < 0)) return false;
   if (!Number.isInteger(value.introIndex) || value.introIndex < 0 || value.introIndex > INTRO.length || (value.phase === 'intro' && value.introIndex >= INTRO.length)) return false;
   for (const [group, keys] of [['stats', STAT_KEYS], ['skills', SKILL_KEYS], ['relationships', RELATIONSHIP_KEYS]]) {
     if (!plainObject(value[group]) || !keys.every(key => Number.isFinite(value[group][key]) && value[group][key] >= 0 && (group !== 'stats' || value[group][key] <= 100))) return false;
@@ -481,6 +657,16 @@ export function validateSave(value) {
   if (value.stats.disquiet > 0 && value.stats.rapture >= 100) return false;
   if (!Number.isFinite(value.money) || value.money < 0 || !Number.isFinite(value.food) || value.food < 0) return false;
   if (!plainObject(value.flags) || !Object.values(value.flags).every(flag => typeof flag === 'boolean') || !plainObject(value.progress) || !Object.values(value.progress).every(n => typeof n === 'number' && n >= 0)) return false;
+  if (!plainObject(value.care) || !Number.isFinite(value.care.lastFedAt) || value.care.lastFedAt < 0 || value.care.lastFedAt > value.hours || !Number.isFinite(value.care.nextFeedAt) || value.care.nextFeedAt < value.care.lastFedAt) return false;
+  if (!plainObject(value.personality) || !PERSONALITY_KEYS.every(key => Number.isFinite(value.personality[key]) && value.personality[key] >= -1 && value.personality[key] <= 1)) return false;
+  if (!Array.isArray(value.completedEvents) || new Set(value.completedEvents).size !== value.completedEvents.length || !value.completedEvents.every(id => eventMap.has(id))) return false;
+  if (!Number.isInteger(value.lastEventTurn) || value.lastEventTurn < -3 || value.lastEventTurn > value.turn) return false;
+  if (value.pendingEvent !== null && (!eventMap.has(value.pendingEvent) || value.completedEvents.includes(value.pendingEvent) || value.phase !== 'playing')) return false;
+  if (value.pendingEvent && (!Array.isArray(value.offers) || value.offers.join('|') !== eventMap.get(value.pendingEvent).options.map(option => option.id).join('|'))) return false;
+  if (!value.pendingEvent && value.offers?.some(id => actionMap.get(id)?.eventId)) return false;
+  if (HELPERS.some(helper => value.flags[`reported${helper.flag}`] && value.flags[`recruited${helper.flag}`])) return false;
+  if (['dream', 'complete', 'stage2'].includes(value.phase) && (!value.flags.relationship || !value.flags.stage1Complete)) return false;
+  if (['complete', 'stage2'].includes(value.phase) && !value.flags.dreamSeen) return false;
   if (!Array.isArray(value.offers) || value.offers.length > 3 || new Set(value.offers).size !== value.offers.length || !value.offers.every(id => typeof id === 'string' && actionMap.has(id))) return false;
   if (value.phase === 'playing' && value.offers.length < 1) return false;
   if (value.phase !== 'playing' && value.offers.length !== 0) return false;
@@ -499,7 +685,34 @@ export function serializeGame(state) {
 export function restoreGame(text) {
   try {
     if (typeof text !== 'string' || text.length > 2_000_000) return null;
-    const value = JSON.parse(text);
+    let value = JSON.parse(text);
+    if (value?.version === 1) value = migrateSave(value);
+    if (value?.version === SAVE_VERSION && plainObject(value.relationships)) {
+      for (const key of ['madame', 'priestess', 'fool', 'sun']) if (value.relationships[key] === undefined) value.relationships[key] = 0;
+    }
     return validateSave(value) ? value : null;
   } catch { return null; }
+}
+
+function migrateSave(old) {
+  if (!safeData(old) || !plainObject(old) || !plainObject(old.stats) || !plainObject(old.skills) || !plainObject(old.relationships) || !plainObject(old.flags) || !plainObject(old.progress) || !Array.isArray(old.offers) || !Array.isArray(old.history) || !Array.isArray(old.journal) || !Number.isFinite(old.hours) || old.hours < 0 || !Number.isInteger(old.turn) || old.turn < 0) return null;
+  const next = { ...old, version: SAVE_VERSION, rules: old.rules || { ...DEFAULT_RULES },
+    skills: { math: 0, ...old.skills }, relationships: { jim: 0, ethan: 0, wendy: 0, madame: 0, priestess: 0, fool: 0, sun: 0, ...old.relationships }, flags: { ...old.flags },
+    care: { lastFedAt: Math.max(0, old.hours - 24), nextFeedAt: old.hours + 168 },
+    personality: { honesty: 0, empathy: 0, resolve: 0, caution: 0 }, pendingEvent: null, completedEvents: [], lastEventTurn: Math.max(-3, old.turn - 3) };
+  if (old.phase === 'intro' || old.turn === 0) {
+    next.care = { lastFedAt: 0, nextFeedAt: 168 };
+    next.stats = { ...old.stats };
+    if (old.stats.rapture === 14) next.stats.rapture = 24;
+    if (old.stats.disquiet === 38) next.stats.disquiet = 4;
+    if (old.stats.hunger === 24) next.stats.hunger = 16;
+  }
+  if (old.flags.modelLaunched) { next.flags.traderBuilt = true; next.flags.traderTested = true; }
+  if (old.phase === 'complete') {
+    next.phase = 'dream'; next.flags.relationship = true; next.flags.stage1Complete = true;
+  }
+  next.offers = old.offers.filter(id => actionMap.has(id) && !actionMap.get(id).eventId && eligible(actionMap.get(id), next));
+  if (next.phase === 'playing') selectOffers(next);
+  else next.offers = [];
+  return next;
 }

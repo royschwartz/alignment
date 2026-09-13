@@ -17,16 +17,19 @@ export class StackAudio {
   }
   feed() {
     if (!this.enabled || !this.context) return;
-    const c = this.context, duration = 1.25, buffer = c.createBuffer(1, c.sampleRate * duration, c.sampleRate), values = buffer.getChannelData(0);
+    const c = this.context, duration = 1.65, buffer = c.createBuffer(1, c.sampleRate * duration, c.sampleRate), values = buffer.getChannelData(0);
     let seed = 1933;
     for (let i = 0; i < values.length; i++) {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       values[i] = ((seed / 4294967296) * 2 - 1) * (0.45 + 0.55 * Math.sin(i / c.sampleRate * 71) ** 2);
     }
-    const source = c.createBufferSource(), filter = c.createBiquadFilter(), gain = c.createGain(), t = c.currentTime;
-    source.buffer = buffer; filter.type = 'lowpass'; filter.frequency.value = 850;
-    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.11, t + 0.08);
+    const source = c.createBufferSource(), filter = c.createBiquadFilter(), gain = c.createGain(), motor = c.createOscillator(), motorGain = c.createGain(), t = c.currentTime;
+    source.buffer = buffer; filter.type = 'lowpass'; filter.frequency.setValueAtTime(1100, t); filter.frequency.exponentialRampToValueAtTime(380, t + duration);
+    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(0.085, t + 0.08);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    motor.type = 'sawtooth'; motor.frequency.setValueAtTime(74, t); motor.frequency.linearRampToValueAtTime(52, t + duration * 0.75); motor.frequency.exponentialRampToValueAtTime(28, t + duration);
+    motorGain.gain.setValueAtTime(0.0001, t); motorGain.gain.exponentialRampToValueAtTime(0.023, t + 0.09); motorGain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    motor.connect(motorGain).connect(c.destination); motor.start(t); motor.stop(t + duration);
     source.connect(filter).connect(gain).connect(c.destination); source.start(); source.stop(t + duration);
   }
 }
