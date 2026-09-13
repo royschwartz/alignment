@@ -111,7 +111,7 @@ export const RHYTHM_RULE_ACTIONS=[
   {id:'stock_gamble',label:'Put $80 on the stock you cannot stop thinking about',description:'A fictional stock. Your savings. You have studied it, but certainty should not feel like this.',category:'career',subcategory:'breakthrough',requirement:12,challenge:4,desire:.9,weight:35,
     when:s=>f(s,'foodStrain')&&!f(s,'stockPosition')&&!f(s,'stockWon')&&s.skills.finance>=2&&s.skills.coding>=1&&s.money>=80,
     effects:s=>({money:-80,rapture:-5,disquiet:3,progress:{stockBoughtAt:s.hours-p(s,'stockBoughtAt')},flags:{stockPosition:true}}),outcome:()=>({title:'The order',text:'eighty dollars.\n\nyou check the symbol.\n\nagain.\n\nyou know.\n\nthat is the frightening part.',presentation:'scene'})},
-  {id:'arrange_deliveries',label:'Arrange regular food deliveries with your helper',description:'$90 to set it up. Food costs $4 per bag, plus $3 a day for transport. Someone helps; the bills stay yours.',category:'care',subcategory:'arrangement',requirement:16,challenge:3,desire:.6,weight:30,
+  {id:'arrange_deliveries',label:'Arrange regular food deliveries with your helper',description:'$90 to set it up. Food costs $4 per bag. Transport costs $3 on days a helper delivers. Someone helps; the bills stay yours.',category:'care',subcategory:'arrangement',requirement:16,challenge:3,desire:.6,weight:30,
     when:s=>f(s,'stockWon')&&f(s,'wagon')&&f(s,'surplusDeal')&&hasHelper(s)&&!f(s,'careContract')&&s.money>=90,
     effects:()=>({money:-90,rapture:-3,disquiet:-2,flags:{careContract:true},relationships:{town:1}}),outcome:()=>({title:'An arrangement',text:'the times written down.\n\nthe gate key copied.\n\nyou are paying someone to return.\n\nyou are still returning.',presentation:'scene'})},
 ];

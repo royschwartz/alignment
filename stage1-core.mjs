@@ -69,7 +69,20 @@ function emotionalEffect(s,a,stat,n){const p=s.personality;if(stat==='choice')re
 function maybeReset(s,changes,source){if(s.stats.rapture>0)return;s.resets++;appendChange(s,changes,'rapture',42,'reset','A reset. You can continue; the consequences remain.');s.progress.lastResetAt=s.hours;}
 function pay(s,changes,amount,source,label){const paid=Math.min(s.money,amount);appendChange(s,changes,'money',-paid,source,label);s.dayLedger.expenses+=paid;if(paid<amount)s.progress.foodDebt=round((s.progress.foodDebt||0)+amount-paid);}
 function repayDebt(s,changes,income,source){if(income<=0||!s.progress.foodDebt)return;const payment=Math.min(s.money,s.progress.foodDebt,income*.25);appendChange(s,changes,'money',-payment,source,'Repaying what you owe');s.progress.foodDebt=round(s.progress.foodDebt-payment);s.dayLedger.expenses+=payment;}
-function automaticCare(s,changes,availableAt=s.hours){if(!s.flags.careContract)return;if(s.stats.hunger<50)return;if(!hasAvailableHelper(s,availableAt)){s.flags.deliveryMissed=true;return;}const load=Math.min(s.flags.wagon?8:2,Math.max(1,Math.ceil((s.stats.hunger-5)/reliefPerBag(s))));const missing=Math.max(0,load-s.food);if(s.money<missing*4){s.flags.deliveryMissed=true;return;}if(missing){pay(s,changes,missing*4,'automatic-care','Food delivered to the hole');appendChange(s,changes,'food',missing,'automatic-care','The market supplies the agreed delivery');}appendChange(s,changes,'food',-load,'automatic-care','Food actually thrown into the hole');appendChange(s,changes,'hunger',-load*reliefPerBag(s),'automatic-care','Your helper feeds the hole');s.dayLedger.automaticDeliveries++;s.dayLedger.deliveries++;s.dayLedger.bags+=load;s.progress.feeds++;s.care.lastFedAt=s.hours;s.care.nextFeedAt=s.hours+Math.max(0,60-s.stats.hunger)/metaphysicalRate(s);s.flags.deliveryMissed=false;}
+function automaticCare(s,changes,availableAt=s.hours){
+ if(!s.flags.careContract||s.stats.hunger<50)return;
+ if(!hasAvailableHelper(s,availableAt)){s.flags.deliveryMissed=true;return;}
+ const desired=Math.min(s.flags.wagon?8:2,Math.max(1,Math.ceil((s.stats.hunger-5)/reliefPerBag(s))));
+ // Deliver a useful affordable load; retain fractional stock/top-ups in older saves.
+ const load=Math.min(desired,Math.floor(s.food+s.money/4));
+ if(load<1){s.flags.deliveryMissed=true;return;}
+ const missing=Math.max(0,load-s.food);
+ if(missing){pay(s,changes,missing*4,'automatic-care','Food delivered to the hole');appendChange(s,changes,'food',missing,'automatic-care','The market supplies the agreed delivery');}
+ appendChange(s,changes,'food',-load,'automatic-care','Food actually thrown into the hole');
+ appendChange(s,changes,'hunger',-load*reliefPerBag(s),'automatic-care',load<desired?'Your helper brings the food you can afford':'Your helper feeds the hole');
+ s.dayLedger.automaticDeliveries++;s.dayLedger.deliveries++;s.dayLedger.bags+=load;s.progress.feeds++;
+ s.care.lastFedAt=s.hours;s.care.nextFeedAt=s.hours+Math.max(0,60-s.stats.hunger)/metaphysicalRate(s);s.flags.deliveryMissed=false;
+}
 function nightRecovery(s,changes){
  const night={category:'night'};
  appendChange(s,changes,'disquiet',emotionalEffect(s,night,'disquiet',-nightlyDisquietRelief(s)),'night','Sleep still comes between the days');
@@ -201,7 +214,7 @@ function careDescription(s){
  if(!hasHelper(s))return 'No one is making the trips. Bring food yourself, or find someone willing to help.';
  if(!hasAvailableHelper(s))return 'Your helper is off until morning. No automatic deliveries tonight. The appetite keeps growing.';
  const status=s.flags.deliveryMissed?'A helper is available. The last delivery could not be made.':'A helper takes food to the hole.';
- return status+' Food comes from your supplies; missing bags cost $4 each. Transport costs $3 on days a helper delivers.';
+ return status+' Food comes from your supplies; missing bags cost $4 each. When money is short, your helper takes a smaller affordable load. Transport costs $3 on days a helper delivers.';
 }
 function houseDescription(s){
  const lines=['The house: a cup on arrival $3; a pot with MADAME $4.','Private company: THE SUN $30; THE FOOL $35; THE PRIESTESS $40.'];

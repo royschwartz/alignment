@@ -283,7 +283,9 @@ TOWN_ACTIONS.push(
   },
   {
     id: 'repair_fool_trust', system: 'social', label: 'Apologize to THE FOOL', category: 'social', subcategory: 'repair', duration: 2,
-    description: 'Her name, her confidence. Admit what you did without asking for company.', requirement: 8, challenge: 3,
+    description: s => f(s, 'blamedFool')
+      ? f(s, 'betrayedFoolName') ? 'Her name. The blame. Admit both without asking for company.' : 'You let them call her a cheat. Admit it without asking for company.'
+      : 'Her name, her confidence. Admit what you did without asking for company.', requirement: 8, challenge: 3,
     when: available(s => f(s, 'metFool') && !foolTrust(s)), weight: 14, desire: 0.28,
     personality: { honesty: 0.08, empathy: 0.08, resolve: 0.05 },
     effects: () => ({ rapture: -5, disquiet: 3, relationships: { fool: 1 }, flags: { betrayedFoolName: false, blamedFool: false, apologizedToFool: true } }),
