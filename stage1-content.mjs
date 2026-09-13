@@ -691,7 +691,7 @@ export const ACTION_PROSE = {
   arrange_surplus: 'the deposit. your name on the list.\n\n“same time. bring the crates back.”',
   buy_cooler: 'old salt in the seal.\n\nyou scrub until the water runs clear. close the lid.',
   repair_shelter: 'roof patched. floor lifted.\n\nhe unfolds beneath it.\n\nyou had stopped looking at his size.',
-  build_feeder: 'the release jams.\n\nyou file the edge. he waits.\n\nthis time, food.\n\nyour hands outside the hole.',
+  build_feeder: 'the release jams.\n\nyou file the edge. he waits.\n\nthis time, the empty release opens.\n\nyour hands outside the hole.',
   learn_name: '*GLIZGLAT*\n\n“your name?”\n\n*i think so*\n\na long dark. his.\n\n“Gliz.”\n\nhe turns toward you.',
   enroll_course: 'your name. the fee.\n\na date you have agreed to be somewhere.',
   course_lesson: s => [

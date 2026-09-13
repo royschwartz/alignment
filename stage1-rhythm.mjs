@@ -42,15 +42,20 @@ export const INTENTIONS = Object.freeze({
 const scene=(title,text)=>({title,text});
 const f=(s,n)=>!!s.flags[n];
 const p=(s,n)=>s.progress[n]||0;
+function provisionedDelivery(s) {
+  const price = f(s, 'surplusDeal') ? 4 : 6;
+  const bags = Math.min(s.flags.wagon ? 8 : 2, Math.floor(s.money / price), Math.max(1, Math.ceil((s.stats.hunger + metaphysicalRate(s) * windowDuration(s) - 12) / reliefPerBag(s))));
+  return { bags, cost: bags * price };
+}
 export const RHYTHM_RULE_ACTIONS=[
   {id:'paid_small_program',label:'Fix the shop’s stock spreadsheet',description:'A small paid job. $46. You understand what is wrong before opening the file.',category:'work',subcategory:'freelance',requirement:18,challenge:2,desire:.65,weight:12,timeSlots:['morning','daytime'],
     when:s=>s.skills.coding>=2&&s.skills.finance>=1&&(!Object.hasOwn(s.progress,'lastPaidFix')||s.hours-s.progress.lastPaidFix>=48),effects:s=>({money:46,rapture:-2,skills:{coding:.35,finance:.25},progress:{lastPaidFix:s.hours-p(s,'lastPaidFix')}}),outcome:()=>scene('The small job','the totals agree now.\n\nshe pays you.\n\nyou remember finding this difficult.')},
   {id:'return_to_hole',label:'Take food back to the hole',description:'A bag. The same woods. Admit what your own appetite is asking.',category:'care',subcategory:'pact',requirement:()=>0,desire:.25,
     when:s=>!f(s,'pactMade'),effects:s=>({food:s.food>0?-1:0,money:s.food>0?0:-Math.min(6,s.money),progress:{foodDebt:s.food>0?0:Math.max(0,6-s.money)},rapture:24,disquiet:17,relationships:{friend:2},flags:{pactMade:true},}),
     outcome:()=>({title:'The return',text:'you brought food.\n\nyou knew where to put it.\n\n**the sound below**\n\nyour appetite loosens.\n\n*ours.*',presentation:'scene'})},
-  {id:'provision_and_feed',label:'Buy food and take it to the hole',description:s=>{const n=Math.min(s.flags.wagon?8:2,Math.max(1,Math.ceil((s.stats.hunger+metaphysicalRate(s)*windowDuration(s)-12)/reliefPerBag(s))));return `${n} bags, $${n*(s.flags.surplusDeal?4:6)}. ${s.flags.wagon?'One wagon trip.':'Only what you can carry.'} Food for the hole, not for you.`;},category:'care',subcategory:'feeding',requirement:()=>0,desire:.45,weight:18,
+  {id:'provision_and_feed',label:'Buy food and take it to the hole',description:s=>{const {bags,cost}=provisionedDelivery(s);return `${bags} ${bags===1?'bag':'bags'}, $${cost}. ${s.flags.wagon?'One wagon trip.':'Only what you can carry.'} Food for the hole, not for you.`;},category:'care',subcategory:'feeding',requirement:()=>0,desire:.45,weight:18,
     when:s=>f(s,'pactMade')&&s.stats.hunger>=18&&s.money>=(f(s,'surplusDeal')?4:6),
-    effects:s=>{const price=f(s,'surplusDeal')?4:6,load=Math.min(s.flags.wagon?8:2,Math.floor(s.money/price),Math.max(1,Math.ceil((s.stats.hunger+metaphysicalRate(s)*windowDuration(s)-12)/reliefPerBag(s))));return {money:-load*price,rapture:4,disquiet:1,relationships:{friend:.5},progress:{feeds:1,bagsDelivered:load}};},
+    effects:s=>{const {bags,cost}=provisionedDelivery(s);return {money:-cost,rapture:4,disquiet:1,relationships:{friend:.5},progress:{feeds:1,bagsDelivered:bags}};},
     outcome:s=>scene('The trip',s.flags.wagon?'the wheels stop.\n\n**below, the bags opening**\n\nyou can bear the afternoon.':'handles against your fingers.\n\n**the sound again**\n\nsuch a little while since last time.')},
   {id:'emergency_delivery',label:'Ask for food on credit; bring it to the hole',description:'The market writes it down. Take two bags into the woods. The debt remains.',category:'care',subcategory:'emergency',requirement:()=>0,challenge:1,desire:.2,weight:2,
     when:s=>f(s,'pactMade')&&s.stats.hunger>=60&&s.food<1&&s.money<6,

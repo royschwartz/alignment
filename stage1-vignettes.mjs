@@ -62,7 +62,7 @@ export const ACTION_VIGNETTES = {
     "“same again?”\n\nyou had hoped to explain less."
   ],
   "collect_surplus": [
-    "eighteen dollars. the manager ticks beside your name.",
+    "twenty-four dollars. the manager ticks beside your name.",
     "the wagon settles lower as you load it.",
     "full crates out. empties back. you know where now.",
     "you count the bags before paying.",
@@ -316,7 +316,7 @@ export const ACTION_VIGNETTES = {
   "eat_stale_snack": [
     "waxy coating. crumbs sticking behind your teeth.",
     "you finish it standing beside the bin.",
-    "less hungry. the taste still there.",
+    "the taste stays. so does the Hunger.",
     "the wrapper crumpled before the last mouthful.",
     "a stale edge. all of it stale.",
     "you swallow before taking another bite.",
@@ -425,7 +425,7 @@ export const ACTION_VIGNETTES = {
     "JIM reverses to the loading door. you guide him in.",
     "food in the truck. the conversation less easy now.",
     "he lifts his end. you lift yours.",
-    "six bags. he counts without saying so.",
+    "eight bags. he counts without saying so.",
     "you pay toward fuel before he asks.",
     "he secures the load. asks how much next time.",
     "no stories on this drive. the engine loud enough.",

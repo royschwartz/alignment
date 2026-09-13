@@ -4,7 +4,9 @@ A playable, HyperCard-inspired narrative game. August 6, 1997.
 
 [Play online](https://royschwartz.github.io/alignment/) · [Download for Android](https://royschwartz.github.io/alignment/downloads/Alignment-Stage-1.apk)
 
-Version **1.3.0** rebuilds Stage 1 around metaphysical Hunger and the shape of ordinary days. Eating can offer pleasure or improve your Lifestyle. Only food thrown into the hole relieves the Hunger. High Hunger diminishes pleasure and sharpens Disquiet; Disquiet takes Rapture throughout the day.
+Version **1.3.1** rebuilds Stage 1 around metaphysical Hunger and the shape of ordinary days. Eating can offer pleasure or improve your Lifestyle. Only food thrown into the hole relieves the Hunger. High Hunger diminishes pleasure and sharpens Disquiet; Disquiet takes Rapture throughout the day.
+
+The latest update keeps sleep consistent when days stretch, restores daily choices when savings run low, and makes every food quote match the affordable delivery.
 
 Morning. Work. Evening. Night. Early grocery shifts are compulsory. Dreams and the day's account close the night. Three optional world screens let you inspect your life and set intentions for future opportunities without spending time. At zero Rapture, a counted reset lets you continue with your relationships, skills, money, and obligations intact.
 
