@@ -8,6 +8,7 @@
 import { TOWN_ACTIONS, TOWN_EVENTS } from './stage1-town.mjs';
 import { ACTION_VIGNETTES } from './stage1-vignettes.mjs';
 import { EVENT_PROSE, EXTRA_STORY_EVENTS } from './stage1-event-prose.mjs';
+import { manualFoodLoad } from './stage1-rhythm.mjs';
 
 const f = (s, key) => Boolean(s.flags?.[key]);
 const p = (s, key) => Number(s.progress?.[key] || 0);
@@ -21,13 +22,13 @@ const ordinary = s => !s.crisis;
 const available = predicate => s => ordinary(s) && predicate(s);
 const ready = s => STAGE1_MILESTONES.every(m => m.test(s));
 
-/** Hunger belongs to the pact. These targets describe a full useful delivery;
- * smaller loads remain possible and provide proportionally shorter relief. */
+/** Legacy appetite planning fields remain readable in existing saves and views.
+ * Actual loads use the Hunger expected at arrival; relief cannot be stored. */
 const day = s => Math.floor(Math.max(0, Number(s.hours) || 0) / 24) + 1;
 const pacted = s => f(s, 'pactMade') || p(s, 'feeds') > 0;
 export const careInterval = s => !pacted(s) ? 0 : day(s) < 8 ? 3 : day(s) < 12 ? 2 : 1;
 export const careFoodRequired = s => !pacted(s) || day(s) < 8 ? 1 : day(s) < 12 ? 2 : day(s) < 18 ? 4 : 6;
-export const careLoad = s => Math.min(Math.max(0, s.food || 0), f(s, 'wagon') ? 8 : 2, careFoodRequired(s));
+export const careLoad = s => manualFoodLoad(s, Math.max(0, s.food || 0));
 export const STAGE1_START = 'you wake up from a long nap. you are getting hungry';
 
 export const INTRO = [
@@ -67,7 +68,7 @@ export const STAGE1_MILESTONES = [
     test: s => f(s, 'wagon') && f(s, 'surplusDeal') && p(s, 'feeds') >= 8,
     detail: s => !f(s, 'wagon') ? 'Save $72 for a wagon. Carry more food in one trip.'
       : !f(s, 'surplusDeal') ? 'Get to know the market and arrange regular food collections.'
-      : `${Math.min(8, p(s, 'feeds'))}/8 deliveries · ${careFoodRequired(s)} bags for lasting relief · smaller loads mean more trips`
+      : `${Math.min(8, p(s, 'feeds'))}/8 deliveries · loads follow the appetite at arrival · Hunger keeps growing afterward`
   },
   {
     id: 'career', label: 'Build an automated trader and earn more',
@@ -118,7 +119,14 @@ export const ACTIONS = [
       'the water warm.\n\nyou finish this one thing.',
       'a clean rim.\n\nyour hands still wet.',
       'you nearly leave it.\n\nthen don’t.',
-      'the cup dry.\n\na small space beside the sink.'
+      'the cup dry.\n\na small space beside the sink.',
+      'the mark inside needs another pass.\n\nyou give it one.',
+      'you turn off the tap.\n\nput the cup where it belongs.',
+      'the towel already damp.\n\nyou find a dry corner.',
+      'you put the sponge down.\n\nafter, this time.',
+      'one finger inside the handle.\n\nyou dry the rim.',
+      'you rinse away the last of it.\n\nleave the sink.',
+      'no one sees you finish.\n\nyou finish.'
     ], 'wash_one_cup'))
   },
     {
@@ -131,7 +139,7 @@ export const ACTIONS = [
   },
   {
     id: 'feed_friend', system: 'local', label: 'Feed your friend', category: 'care', subcategory: 'feeding', duration: 3,
-    description: s => `Deliver ${careLoad(s)} ${careLoad(s) === 1 ? 'bag' : 'bags'}. ${careFoodRequired(s)} for lasting relief. ${f(s, 'wagon') ? 'The wagon carries up to eight.' : 'Your arms carry two; smaller loads mean more trips.'}`, requirement: 4,
+    description: s => `Deliver ${careLoad(s)} ${careLoad(s) === 1 ? 'bag' : 'bags'} from your supplies, for the appetite at arrival. ${f(s, 'wagon') ? 'The wagon carries up to eight.' : 'Your arms carry two; smaller loads mean more trips.'} You handle this part of the day.`, requirement: 4,
     when: available(s => s.food >= 1 && s.stats.hunger >= 12),
     weight: 28, desire: 0.96, neglect: 1.8,
     effects: s => ({ food: -careLoad(s), hunger: -60, rapture: 10, relationships: { friend: 1 }, progress: { feeds: 1 } }),
@@ -195,7 +203,7 @@ export const ACTIONS = [
   },
   {
     id: 'stock_feeder', system: 'local', label: 'Stock and run the feeder', category: 'care', subcategory: 'feeding', duration: 2,
-    description: s => `Load ${careLoad(s)} bags. The chute saves handling; food and Hunger remain real costs.`, requirement: 8,
+    description: s => `Load ${careLoad(s)} ${careLoad(s) === 1 ? 'bag' : 'bags'} from your supplies, for the appetite at arrival. The chute saves handling. You still spend this part of the day.`, requirement: 8,
     when: available(s => f(s, 'feederBuilt') && f(s, 'wagon') && s.food >= 1 && s.stats.hunger >= 12), weight: 30, desire: 0.96, neglect: 1.8,
     effects: s => ({ food: -careLoad(s), hunger: -60, rapture: 10, relationships: { friend: 1 }, progress: { feeds: 1, stocked: 1 }, flags: { feederStocked: true } }),
     outcome: s => scene('The apparatus', vary(s, ['The release opens. You clean the chute before going home. Already you are thinking about tomorrow.', 'You sit beside the machine and listen to its work.\n\n*can I have some more?*', 'There is less clearance beneath the shed. You note the measurements. Your friend has grown again.'], 'stock_feeder'))

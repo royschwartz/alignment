@@ -33,14 +33,14 @@ export function attributeDescription(stat){return {
  hunger:'Hunger is metaphysical. Eating does not relieve it. Throwing food into the hole does.\n\nAs your Hunger increases, events that happen to you generate less Rapture and more Disquiet. It rises as time passes.',
  disquiet:'Disquiet is gained and lost as appropriate to the circumstance.\n\nOver the course of a day, you will lose Rapture equal to your Disquiet total. The night reports this loss; it does not charge it again.',
  rapture:'Rapture is gained and lost as appropriate to the circumstance.\n\nSometimes when you make a decision you must sacrifice it. If it reaches zero, you reset and continue. Your reset count remains.',
- choice:'You gain Choice by making decisions where you sacrifice Rapture.\n\nYou lose Choice under mysterious circumstances. Some truths are harder to choose than others.',
+ choice:'You gain Choice by making decisions where you sacrifice Rapture.\n\nYou lose Choice under mysterious circumstances. Some truths are harder to choose than others.\n\nHunger and Disquiet can raise the Choice some decisions require. Feeding the hole and letting Disquiet settle can make those decisions easier.',
  money:'Ordinary money. Wages, bills, groceries, dates, and paid company.\n\nA reset does not erase a bill.',
  lifestyle:'The way you are living. Healthy food, a cared-for home, and habits that leave something for tomorrow.\n\nEating well can improve Lifestyle. Better habits help Disquiet settle during sleep. They cannot feed the Hunger.'
 }[stat]||'';}
 export function gameDate(hours=0){const date=new Date(Date.UTC(1997,7,6,5)+Math.floor(clamp(Number.isFinite(hours)?hours:0,0,100_000_000)*60+1e-8)*60_000);const months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];return {year:date.getUTCFullYear(),month:date.getUTCMonth()+1,day:date.getUTCDate(),hour:date.getUTCHours(),minute:date.getUTCMinutes(),date:`${months[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`};}
 export function appetiteRate(state){return typeof state==='object'?metaphysicalRate(state):.9;}
 export function friendCare(s){const rate=metaphysicalRate(s),capacity=s.flags.wagon?8:2;return {...s.care,intervalDays:CONTENT.careInterval(s),foodRequired:CONTENT.careFoodRequired(s),capacity,rate,reliefPerBag:reliefPerBag(s),dueIn:round(Math.max(0,60-s.stats.hunger)/rate),overdue:Math.max(0,(s.stats.hunger-60)/rate),automatic:!!s.flags.careContract&&hasHelper(s)&&!s.flags.deliveryMissed};}
-const ledger=s=>({day:dayNumber(s),disquietLoss:0,expenses:0,income:0,deliveries:0,bags:0,hungerStart:s.stats.hunger,resetsStart:s.resets});
+const ledger=s=>({day:dayNumber(s),disquietLoss:0,expenses:0,income:0,deliveries:0,automaticDeliveries:0,bags:0,hungerStart:s.stats.hunger,resetsStart:s.resets});
 export function createGame(seed=Date.now(),rules={}){const s={version:SAVE_VERSION,seed:String(seed),rng:hashSeed(seed),phase:'intro',introIndex:0,rules:{...DEFAULT_RULES,...rules},turn:0,hours:0,stats:{rapture:36,disquiet:2,choice:38,hunger:16},money:20,food:0,lifestyle:20,resets:0,skills:Object.fromEntries(SKILL_KEYS.map(k=>[k,0])),relationships:Object.fromEntries(RELATIONSHIP_KEYS.map(k=>[k,0])),flags:{},progress:{feeds:0,danger:0},care:{lastFedAt:0,nextFeedAt:48},personality:Object.fromEntries(PERSONALITY_KEYS.map(k=>[k,0])),pendingEvent:null,completedEvents:[],lastEventTurn:-3,history:[],journal:[],offers:[],crisis:null,lastOutcome:null,interludes:[],interludeReturn:null,rhythm:{mode:'daily',stepDays:1,intentions:{local:'balance',fintech:'learning',social:'town'}},nights:[]};s.dayLedger=ledger(s);return s;}
 export function inspectSystem(state){return state;}
 function systemUnlocked(system,s){return s.phase!=='intro'&&system.unlocked(s);}
@@ -68,7 +68,7 @@ function emotionalEffect(s,a,stat,n){const p=s.personality;if(stat==='choice')re
 function maybeReset(s,changes,source){if(s.stats.rapture>0)return;s.resets++;appendChange(s,changes,'rapture',42,'reset','A reset. You can continue; the consequences remain.');s.progress.lastResetAt=s.hours;}
 function pay(s,changes,amount,source,label){const paid=Math.min(s.money,amount);appendChange(s,changes,'money',-paid,source,label);s.dayLedger.expenses+=paid;if(paid<amount)s.progress.foodDebt=round((s.progress.foodDebt||0)+amount-paid);}
 function repayDebt(s,changes,income,source){if(income<=0||!s.progress.foodDebt)return;const payment=Math.min(s.money,s.progress.foodDebt,income*.25);appendChange(s,changes,'money',-payment,source,'Repaying what you owe');s.progress.foodDebt=round(s.progress.foodDebt-payment);s.dayLedger.expenses+=payment;}
-function automaticCare(s,changes){if(!s.flags.careContract)return;if(!hasHelper(s)){s.flags.deliveryMissed=true;return;}if(s.stats.hunger<50)return;const load=Math.min(s.flags.wagon?8:2,Math.max(1,Math.ceil((s.stats.hunger-5)/reliefPerBag(s))));const missing=Math.max(0,load-s.food);if(s.money<missing*4){s.flags.deliveryMissed=true;return;}if(missing){pay(s,changes,missing*4,'automatic-care','Food delivered to the hole');appendChange(s,changes,'food',missing,'automatic-care','The market supplies the agreed delivery');}appendChange(s,changes,'food',-load,'automatic-care','Food actually thrown into the hole');appendChange(s,changes,'hunger',-load*reliefPerBag(s),'automatic-care','Your helper feeds the hole');s.dayLedger.deliveries++;s.dayLedger.bags+=load;s.progress.feeds++;s.care.lastFedAt=s.hours;s.care.nextFeedAt=s.hours+Math.max(0,60-s.stats.hunger)/metaphysicalRate(s);s.flags.deliveryMissed=false;}
+function automaticCare(s,changes){if(!s.flags.careContract)return;if(!hasHelper(s)){s.flags.deliveryMissed=true;return;}if(s.stats.hunger<50)return;const load=Math.min(s.flags.wagon?8:2,Math.max(1,Math.ceil((s.stats.hunger-5)/reliefPerBag(s))));const missing=Math.max(0,load-s.food);if(s.money<missing*4){s.flags.deliveryMissed=true;return;}if(missing){pay(s,changes,missing*4,'automatic-care','Food delivered to the hole');appendChange(s,changes,'food',missing,'automatic-care','The market supplies the agreed delivery');}appendChange(s,changes,'food',-load,'automatic-care','Food actually thrown into the hole');appendChange(s,changes,'hunger',-load*reliefPerBag(s),'automatic-care','Your helper feeds the hole');s.dayLedger.automaticDeliveries++;s.dayLedger.deliveries++;s.dayLedger.bags+=load;s.progress.feeds++;s.care.lastFedAt=s.hours;s.care.nextFeedAt=s.hours+Math.max(0,60-s.stats.hunger)/metaphysicalRate(s);s.flags.deliveryMissed=false;}
 function nightRecovery(s,changes){
  const night={category:'night'};
  appendChange(s,changes,'disquiet',emotionalEffect(s,night,'disquiet',-nightlyDisquietRelief(s)),'night','Sleep still comes between the days');
@@ -87,23 +87,25 @@ function drainDisquiet(s,changes,loss,source){
   remaining=round(remaining-paid);
  }
 }
-function advanceTime(s,changes,duration,source){
+function advanceTime(s,changes,duration,source,{manualTrip=false}={}){
+ // Preserve an old save's pending transport accounting once, before new trips are counted.
+ s.dayLedger.automaticDeliveries ??= s.flags.careContract&&hasHelper(s)?s.dayLedger.deliveries:0;
  const start=s.hours,end=round(start+duration);
  while(s.hours<end-.00001){
   const dayStart=Math.floor(s.hours/24)*24,boundary=dayStart+24,nightStart=dayStart+17;
   // A skipped night begins at the same 22:00 boundary as an explicit night.
   // An explicit rest at that boundary has already applied its own recovery.
-  if(s.rhythm.mode==='spaced'&&Math.abs(s.hours-nightStart)<.0001&&!(source==='night_rest'&&Math.abs(s.hours-start)<.0001))nightRecovery(s,changes);
+  if(!manualTrip&&s.rhythm.mode==='spaced'&&Math.abs(s.hours-nightStart)<.0001&&!(source==='night_rest'&&Math.abs(s.hours-start)<.0001))nightRecovery(s,changes);
   const nextNight=s.hours<nightStart-.0001?nightStart:nightStart+24;
   const dt=Math.min(1,end-s.hours,boundary-s.hours,nextNight-s.hours);
   const loss=s.stats.disquiet*dt/24;
   appendChange(s,changes,'hunger',metaphysicalRate(s)*dt,source,'Metaphysical Hunger grows with time');
-  s.hours=round(s.hours+dt);automaticCare(s,changes);drainDisquiet(s,changes,loss,source);maybeReset(s,changes,source);
+  s.hours=round(s.hours+dt);if(!manualTrip)automaticCare(s,changes);drainDisquiet(s,changes,loss,source);maybeReset(s,changes,source);
   if(Math.abs(s.hours-boundary)<.0001){
    if(s.flags.modelLaunched){const profit=44+(s.dayLedger.day*7%13);appendChange(s,changes,'money',profit,'trader','Your tested automated trader');s.dayLedger.income+=profit;repayDebt(s,changes,profit,'trader');}
    pay(s,changes,6,'night','Daily living costs');
    if(s.dayLedger.day%7===0)pay(s,changes,65,'night','Weekly rent and bills');
-   if(s.flags.careContract&&hasHelper(s)&&s.dayLedger.deliveries>0)pay(s,changes,3,'night','Your helper’s transport');
+   if(s.dayLedger.automaticDeliveries>0)pay(s,changes,3,'night','Your helper’s transport');
    const report={...s.dayLedger,hungerEnd:s.stats.hunger,resets:s.resets-s.dayLedger.resetsStart};
    s.nights.push(report);s.nights=s.nights.slice(-90);s.dayLedger=ledger(s);
    if(s.rhythm.mode==='spaced'&&!denseLife(s)){s.rhythm.mode='daily';s.rhythm.stepDays=1;break;}
@@ -114,6 +116,8 @@ function compactChanges(changes){const groups=new Map();for(const c of changes){
 function nightText(s,report){if(!report)return '';return `Disquiet took ${report.disquietLoss.toFixed(1)} Rapture over ${report.days>1?report.days+' days':'the day'}.\n$${report.expenses.toFixed(2)} spent. $${report.income.toFixed(2)} earned.${report.deliveries?`\n${report.deliveries} deliveries; ${report.bags} bags into the hole.`:''}\nHunger ${report.hungerEnd.toFixed(1)}.${report.resets?` ${report.resets} ${report.resets===1?'reset':'resets'}.`:''}${s.progress.foodDebt?`\n$${s.progress.foodDebt.toFixed(2)} still owed.`:''}`;}
 function resolve(state,a,{preview=false}={}){
  const s=clone(state),changes=[];const succeeded=!a.task||preview||random(s)<taskSuccessChance(state,a);const effects=evaluate(succeeded?a.effects:a.task.failureEffects,state,{});const requestedDuration=durationFor(state);let duration=requestedDuration;
+ const delivery=['feed_friend','stock_feeder','provision_and_feed','emergency_delivery','return_to_hole'].includes(a.id);
+ if(delivery){duration=windowDuration(state);s.rhythm.mode='daily';s.rhythm.stepDays=1;}
  const directD=emotionalEffect(state,a,'disquiet',Number(effects.disquiet||0));appendChange(s,changes,'disquiet',directD,a.id,directD>0?'Hunger sharpens the difficult part':'The world grows quieter');
  appendChange(s,changes,'rapture',emotionalEffect(state,a,'rapture',Number(effects.rapture||0)),a.id,Number(effects.rapture||0)>0?'Pleasure, diminished by Hunger':'What you choose to sacrifice');
  let bonus=emotionalEffect(state,a,'choice',choiceBonus(a,state,changes));if(a.recovery)bonus=Math.min(bonus,Math.max(0,a.recovery.ceiling-state.stats.choice));appendChange(s,changes,'choice',bonus,a.id,'Rapture sacrificed for a decision');appendChange(s,changes,'choice',-Math.max(0,Number(evaluate(a.ethics,state,0))),a.id,'A promise to yourself becomes smaller');
@@ -127,19 +131,18 @@ function resolve(state,a,{preview=false}={}){
  for(const k of PERSONALITY_KEYS)s.personality[k]=round(clamp(state.personality[k]+Number(evaluate(a.personality,state,{})[k]||0),-1,1));
  const helperReactions=helperConsequences(s,changes);
  if(state.rhythm.mode==='spaced'&&!denseLife(s)){s.rhythm.mode='daily';s.rhythm.stepDays=1;duration=windowDuration(state);}
- maybeReset(s,changes,a.id);advanceTime(s,changes,duration,a.id);
+ maybeReset(s,changes,a.id);advanceTime(s,changes,duration,a.id,{manualTrip:delivery});
  // Nothing but food delivered to the hole can reduce metaphysical Hunger.
- const delivery=['feed_friend','stock_feeder','provision_and_feed','emergency_delivery','return_to_hole'].includes(a.id);
  if(delivery){const load=a.id==='return_to_hole'?1:Math.max(0,-Number(effects.food||0),Number(effects.progress?.bagsDelivered||0));appendChange(s,changes,'hunger',a.id==='return_to_hole'?8-s.stats.hunger:-load*reliefPerBag(state),a.id,'Food in the hole. Your own appetite eases.');s.dayLedger.deliveries++;s.dayLedger.bags+=load;s.care.lastFedAt=s.hours;s.care.nextFeedAt=s.hours+Math.max(0,60-s.stats.hunger)/metaphysicalRate(s);if(a.id==='return_to_hole'){s.progress.pactAt=s.hours;s.progress.feeds++;s.flags.pactMade=true;}}
  s.turn++;s.progress[`visits_${a.id}`]=(state.progress[`visits_${a.id}`]||0)+1;if(a.meal)s.progress.lastMealDay=dayNumber(state);if(a.id==='temporary_shift')s.progress.lastShiftDay=dayNumber(state);
  s.history.push({id:a.id,category:a.category||'other',subcategory:a.subcategory||a.id,turn:s.turn,day:dayNumber(state),slot:windowAt(state).id});s.history=s.history.slice(-MAX_HISTORY);
  const authored=succeeded?a.outcome:a.task.failureOutcome;const raw=evaluate(authored,state,{title:a.label,text:a.description||'The hours pass.'});const outcome=typeof raw==='string'?{title:a.label,text:raw}:{...raw};
  if(helperReactions.length){outcome.text+='\n\n'+helperReactions.join('\n\n');outcome.presentation='scene';}
  const interval=s.nights.filter(n=>n.day>=dayNumber(state)&&n.day<dayNumber(s));
- if(a.id==='night_rest'||state.rhythm.mode==='spaced'&&interval.length){
+ if(a.id==='night_rest'||(state.rhythm.mode==='spaced'||delivery)&&interval.length){
   const report=interval.length?{...interval.at(-1),days:interval.length,disquietLoss:interval.reduce((n,r)=>n+r.disquietLoss,0),expenses:interval.reduce((n,r)=>n+r.expenses,0),income:interval.reduce((n,r)=>n+r.income,0),deliveries:interval.reduce((n,r)=>n+r.deliveries,0),bags:interval.reduce((n,r)=>n+r.bags,0),resets:interval.reduce((n,r)=>n+r.resets,0)}:s.nights.at(-1);let dream='no dream you can remember.';const candidates=NIGHT_DREAMS.filter(d=>!d.when||d.when(s));if(candidates.length&&dayNumber(state)%(s.rhythm.mode==='spaced'?4:3)!==0)dream=candidates[(dayNumber(state)-1)%candidates.length].text;
-  outcome.title=a.id==='night_rest'?'Night':outcome.title;outcome.text+=(a.id==='night_rest'?'\n\n'+dream:'\n\nthe days pass. '+(dayNumber(state)%4===0?dream:''))+'\n\n'+nightText(s,report);outcome.presentation='scene';
-  s.rhythm.mode=denseLife(s)?'spaced':'daily';s.rhythm.stepDays=compressedDays(s);
+  outcome.title=a.id==='night_rest'?'Night':outcome.title;outcome.text+=(delivery?'\n\nawake. the night passes on the road.\n\nBefore the food reaches the hole:':a.id==='night_rest'?'\n\n'+dream:'\n\nthe days pass. '+(dayNumber(state)%4===0?dream:''))+'\n\n'+nightText(s,report);outcome.presentation='scene';
+  if(!delivery){s.rhythm.mode=denseLife(s)?'spaced':'daily';s.rhythm.stepDays=compressedDays(s);}
  }
  if(state.rhythm.mode==='spaced'&&s.hours-state.hours<requestedDuration-.001)outcome.text+=windowAt(s).id==='morning'?'\n\nthe next day needs your attention.':'\n\nthe day needs your attention.';
  return {state:s,changes:compactChanges(changes),outcome,taskSucceeded:succeeded};
@@ -186,7 +189,7 @@ function selectOffers(s){
  while(selected.length<3&&pool.length){const weights=pool.map(a=>intentWeight(a,s));let pick=random(s)*weights.reduce((a,b)=>a+b,0),idx=pool.length-1;for(let i=0;i<pool.length;i++){pick-=weights[i];if(pick<0){idx=i;break;}}selected.push(pool.splice(idx,1)[0].id);}
  if(!selected.length)selected.push('wait');s.offers=[...new Set(selected)];
 }
-function offerView(a,s){const scheduled=a.id==='temporary_shift'&&isScheduledWork(s);const action=scheduled?{...a,requirement:()=>0}:a;const lockedReason=blockedReason(action,s);const effects=evaluate(a.effects,s,{});const cost=Number(effects.money||0);const preview=lockedReason?null:resolve(s,action,{preview:true});return {id:a.id,label:scheduled?'Work your scheduled grocery shift':a.label,description:(scheduled?'You are on the rota. 9 a.m.–5 p.m. $52 before bills. ':String(evaluate(a.description,s,'')))+(cost<0&&!/\$/.test(String(evaluate(a.description,s,'')))?` Costs $${-cost}.`:''),category:a.category||'other',duration:preview?round(preview.state.hours-s.hours):durationFor(s),requirement:currentRequirement(action,s),available:!lockedReason,lockedReason,blinking:!lockedReason&&Number(effects.rapture||0)>0,thorny:Number(effects.rapture||0)<0,preview:preview?.changes||[],finish:a.id===FINISH.id||a.id==='stage1_complete',uncertain:!!a.task,mandatory:scheduled||a.id==='night_rest'||a.id==='return_to_hole'&&!s.flags.pactMade&&s.stats.hunger>=65};}
+function offerView(a,s){const scheduled=a.id==='temporary_shift'&&isScheduledWork(s);const action=scheduled?{...a,requirement:()=>0}:a;const lockedReason=blockedReason(action,s);const effects=evaluate(a.effects,s,{});const cost=Number(effects.money||0);const preview=lockedReason?null:resolve(s,action,{preview:true});return {id:a.id,label:scheduled?'Work your scheduled grocery shift':a.label,description:(scheduled?'You are on the rota. 9 a.m.–5 p.m. $52 before bills. ':String(evaluate(a.description,s,'')))+(cost<0&&!/\$/.test(String(evaluate(a.description,s,'')))?` Costs $${-cost}.`:''),category:a.category||'other',duration:preview?round(preview.state.hours-s.hours):durationFor(s),requirement:currentRequirement(action,s),requirementHint:choiceRequirementHint(action,s,lockedReason),available:!lockedReason,lockedReason,blinking:!lockedReason&&Number(effects.rapture||0)>0,thorny:Number(effects.rapture||0)<0,preview:preview?.changes||[],finish:a.id===FINISH.id||a.id==='stage1_complete',uncertain:!!a.task,mandatory:scheduled||a.id==='night_rest'||a.id==='return_to_hole'&&!s.flags.pactMade&&s.stats.hunger>=65};}
 function systemsView(s){return SYSTEMS.map(system=>{let text;if(system.id==='local')text=`${s.flags.hungerDiscovered?'Hunger is '+s.stats.hunger.toFixed(1)+'. Eating cannot relieve it.':'You have not admitted what the appetite wants.'}\n${s.food} bags. ${s.flags.wagon?'A wagon.':'Two bags at a time, in your hands.'}\n${s.flags.careContract&&hasHelper(s)&&!s.flags.deliveryMissed?'A helper takes food to the hole. $4 per bag, $3 a day for transport.':s.flags.pactMade?'Food must go into the hole.':'You do not want to make another trip.'}\n${s.flags.lifestyleDiscovered?'Lifestyle '+s.lifestyle.toFixed(1)+'.':'Your room. Your habits.'} ${s.progress.foodDebt?`$${s.progress.foodDebt.toFixed(2)} owed.`:''}`;else if(system.id==='fintech')text=`$${s.money.toFixed(2)}. Living costs $6 a day; rent and bills $65 a week.\n${s.flags.financialSecurity&&s.money>=100?'You can choose how to use the working day.':'Grocery shifts: Monday–Friday, 9 a.m.–5 p.m. $52 a shift.'}\nCoding ${s.skills.coding.toFixed(1)}. Math ${s.skills.math.toFixed(1)}. Markets ${s.skills.finance.toFixed(1)}.\n${s.flags.stockWon?'The stock paid. You still remember knowing.':s.flags.foodStrain?'The cost of food demands another way.':'You keep looking at what might be possible.'}`;else text=`${s.flags.metPerson?'PERSON has her own life. Make room for it.':'There are people beyond these rooms.'}\n${HELPERS.filter(h=>s.flags['recruited'+h.flag]).map(h=>h.name+' helps.').join(' ')}\nThe house: tea $3; THE SUN $30; THE FOOL $35; THE PRIESTESS $40.\nLooking and setting an intention cost no time.`;return {id:system.id,label:system.label,unlocked:systemUnlocked(system,s),hint:'An intention makes related opportunities more likely. It does not spend this part of the day.',text,actions:INTENTIONS[system.id].map(i=>({id:`intent:${system.id}:${i.value}`,label:i.label,description:i.description,category:'intention',selected:s.rhythm.intentions[system.id]===i.value,available:true,requirement:0,duration:0,preview:[],blinking:false,thorny:false,system:system.id}))};});}
 export function getView(s){const event=eventMap.get(s.pendingEvent),interlude=s.interludes.length>0;const scheduled=isScheduledWork(s);return {phase:s.phase,intro:s.phase==='intro'?INTRO[s.introIndex]:null,title:s.phase==='intro'?INTRO[s.introIndex].title:s.lastOutcome?.title||'A long nap',text:s.phase==='intro'?INTRO[s.introIndex].text:s.lastOutcome?.text||CONTENT.STAGE1_START,interlude,chapter:s.phase==='stage2'?'Stage 2':s.flags.timeStretched?'The days loosen':s.flags.stockWon?'You knew':s.flags.foodStrain?'The cost':s.flags.pactMade?'The pact':'Denial',mood:s.stats.hunger>=70?'The appetite is inside everything':s.flags.pactMade?'More of the world reaches you':'You do not want to return',offers:s.phase==='playing'&&!interlude?s.offers.map(id=>actionMap.get(id)).filter(Boolean).map(a=>offerView(a,s)):[],wait:s.phase==='playing'&&!interlude&&!event&&!scheduled&&!(windowAt(s).id==='night'&&s.rhythm.mode==='daily')&&!(s.stats.hunger>=65&&!s.flags.pactMade)?offerView(WAIT,s):null,storyEvent:event&&!interlude?{id:event.id,title:event.title,text:String(evaluate(event.text,s,'')),options:event.options.map(o=>offerView(actionMap.get(o.id),s))}:null,systems:systemsView(s),revealedStats:revealedStats(s),presentation:s.phase==='intro'||interlude?'scene':s.lastOutcome?.presentation||'log',milestones:milestones(s),ready:stageReady(s),day:dayNumber(s),hour:gameDate(s.hours).hour,calendar:gameDate(s.hours),care:friendCare(s),crisis:null,ending:s.ending||null,resets:s.resets,lifestyle:s.lifestyle,rhythm:{day:dayNumber(s),slot:windowAt(s).id,label:s.rhythm.mode==='spaced'?(s.rhythm.stepDays>1?'A few days':'Today'):windowAt(s).label,density:s.rhythm.mode,scheduledWork:scheduled,stepDays:s.rhythm.stepDays},timeline:ARC_TIMELINE};}
 function finishTurn(result,old,a){const s=result.state;if(a.eventId){s.completedEvents.push(a.eventId);s.pendingEvent=null;s.lastEventTurn=s.turn;}
@@ -245,6 +248,15 @@ function currentRequirement(action, state) {
   if (action.category === 'care') mood -= Math.max(0, state.stats.hunger - 40) * 0.09;
   else mood += Math.max(0, state.stats.hunger - 65) * 0.09;
   return Math.round(clamp((action.requirement || 0) + mood - practice));
+}
+
+function choiceRequirementHint(action, state, lockedReason) {
+  if (!lockedReason.startsWith('Requires ')) return '';
+  const required = currentRequirement(action, state), hints = [];
+  const lowered = (stat, limit) => currentRequirement(action, { ...state, stats: { ...state.stats, [stat]: limit } }) < required;
+  if (state.flags.hungerDiscovered && state.stats.hunger > 65 && lowered('hunger', 65)) hints.push('Hunger is making this harder to choose. Feeding the hole can lower the Choice it asks for.');
+  if (state.flags.disquietDiscovered && state.stats.disquiet > 40 && lowered('disquiet', 40)) hints.push('Disquiet is making this harder to choose. Letting it settle can lower the Choice it asks for.');
+  return hints.join('\n\n');
 }
 
 
@@ -342,7 +354,9 @@ export function validateSave(s){
  if(!plainObject(s.rhythm)||!['daily','spaced'].includes(s.rhythm.mode)||![1,2].includes(s.rhythm.stepDays)||!plainObject(s.rhythm.intentions)||!Object.entries(INTENTIONS).every(([k,list])=>list.some(i=>i.value===s.rhythm.intentions[k])))return false;
  if(!Array.isArray(s.interludes)||s.interludes.length>30||!s.interludes.every(i=>plainObject(i)&&typeof i.key==='string'&&typeof i.title==='string'&&typeof i.text==='string'&&(!i.reveal||ATTRIBUTE_KEYS.includes(i.reveal))))return false;
  if(!plainObject(s.dayLedger)||!['day','disquietLoss','expenses','income','deliveries','bags','hungerStart','resetsStart'].every(k=>Number.isFinite(s.dayLedger[k])&&s.dayLedger[k]>=0)||!Array.isArray(s.nights)||s.nights.length>90)return false;
+ if(s.dayLedger.automaticDeliveries!==undefined&&(!Number.isInteger(s.dayLedger.automaticDeliveries)||s.dayLedger.automaticDeliveries<0||s.dayLedger.automaticDeliveries>s.dayLedger.deliveries))return false;
  if(!s.nights.every(n=>plainObject(n)&&['day','disquietLoss','expenses','income','deliveries','bags','hungerStart','resetsStart','hungerEnd','resets'].every(k=>Number.isFinite(n[k])&&n[k]>=0)))return false;
+ if(!s.nights.every(n=>n.automaticDeliveries===undefined||Number.isInteger(n.automaticDeliveries)&&n.automaticDeliveries>=0&&n.automaticDeliveries<=n.deliveries))return false;
  if(!Array.isArray(s.completedEvents)||new Set(s.completedEvents).size!==s.completedEvents.length||!s.completedEvents.every(id=>eventMap.has(id))||!Number.isInteger(s.lastEventTurn)||s.lastEventTurn>s.turn||s.lastEventTurn< -3)return false;
  if(s.pendingEvent!==null&&(!eventMap.has(s.pendingEvent)||s.completedEvents.includes(s.pendingEvent)||s.phase!=='playing'))return false;
  if(!Array.isArray(s.offers)||s.offers.length>3||new Set(s.offers).size!==s.offers.length||!s.offers.every(id=>actionMap.has(id)))return false;

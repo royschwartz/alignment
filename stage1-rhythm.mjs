@@ -17,6 +17,12 @@ export function metaphysicalRate(s) {
   return day < 8 ? 0.8 : day < 12 ? 1.5 : day < 16 ? 2.8 : day < 21 ? 4.6 : 5.6;
 }
 export function reliefPerBag(s) { return dayNumber(s)<8 ? 60 : dayNumber(s)<12 ? 42 : dayNumber(s)<16 ? 30 : 22; }
+// A personal trip occupies this ordinary window. Food cannot store relief beyond the Hunger cap.
+export const projectedArrivalHunger = s => Math.min(100, s.stats.hunger + metaphysicalRate(s) * windowDuration(s));
+export function manualFoodLoad(s, available=Infinity) {
+  const useful=Math.max(0, Math.ceil((projectedArrivalHunger(s)-12)/reliefPerBag(s)-1e-9));
+  return Math.min(s.flags.wagon ? 8 : 2, Math.max(0, Math.floor(available)), useful);
+}
 export const denseLife = s => Boolean(s.flags.financialSecurity && s.flags.modelLaunched && s.flags.careContract && hasHelper(s) && s.money >= 120 && s.stats.hunger < 60 && !s.crisis);
 export const nightlyDisquietRelief = s => 3 + Math.min(3, s.lifestyle / 20);
 export const compressedDays = s => !denseLife(s) ? 1 : s.flags.timeStretched && dayNumber(s)>=30 ? 2 : 1;
@@ -44,24 +50,61 @@ const f=(s,n)=>!!s.flags[n];
 const p=(s,n)=>s.progress[n]||0;
 function provisionedDelivery(s) {
   const price = f(s, 'surplusDeal') ? 4 : 6;
-  const bags = Math.min(s.flags.wagon ? 8 : 2, Math.floor(s.money / price), Math.max(1, Math.ceil((s.stats.hunger + metaphysicalRate(s) * windowDuration(s) - 12) / reliefPerBag(s))));
+  const bags = manualFoodLoad(s, Math.floor(s.money / price));
   return { bags, cost: bags * price };
 }
 export const RHYTHM_RULE_ACTIONS=[
   {id:'paid_small_program',label:'Fix the shop’s stock spreadsheet',description:'A small paid job. $46. You understand what is wrong before opening the file.',category:'work',subcategory:'freelance',requirement:18,challenge:2,desire:.65,weight:12,timeSlots:['morning','daytime'],
-    when:s=>s.skills.coding>=2&&s.skills.finance>=1&&(!Object.hasOwn(s.progress,'lastPaidFix')||s.hours-s.progress.lastPaidFix>=48),effects:s=>({money:46,rapture:-2,skills:{coding:.35,finance:.25},progress:{lastPaidFix:s.hours-p(s,'lastPaidFix')}}),outcome:()=>scene('The small job','the totals agree now.\n\nshe pays you.\n\nyou remember finding this difficult.')},
+    when:s=>s.skills.coding>=2&&s.skills.finance>=1&&(!Object.hasOwn(s.progress,'lastPaidFix')||s.hours-s.progress.lastPaidFix>=48),effects:s=>({money:46,rapture:-2,skills:{coding:.35,finance:.25},progress:{lastPaidFix:s.hours-p(s,'lastPaidFix')}}),outcome:s=>{
+      const passages=[
+        'the totals agree now.\n\nshe pays you.\n\nyou remember finding this difficult.',
+        'one wrong reference.\n\nyou change it.\n\ncheck the totals before asking for payment.',
+        'she tries the file herself.\n\nyou wait.\n\nthen the money.',
+        'you explain the change.\n\nshe asks where to click.\n\nyou show her.'
+      ];
+      const visits=s.progress?.visits_paid_small_program??(s.history||[]).filter(entry=>entry.id==='paid_small_program').length;
+      return scene('The small job',passages[visits%passages.length]);
+    }},
   {id:'return_to_hole',label:'Take food back to the hole',description:'A bag. The same woods. Admit what your own appetite is asking.',category:'care',subcategory:'pact',requirement:()=>0,desire:.25,
     when:s=>!f(s,'pactMade'),effects:s=>({food:s.food>0?-1:0,money:s.food>0?0:-Math.min(6,s.money),progress:{foodDebt:s.food>0?0:Math.max(0,6-s.money)},rapture:24,disquiet:17,relationships:{friend:2},flags:{pactMade:true},}),
     outcome:()=>({title:'The return',text:'you brought food.\n\nyou knew where to put it.\n\n**the sound below**\n\nyour appetite loosens.\n\n*ours.*',presentation:'scene'})},
-  {id:'provision_and_feed',label:'Buy food and take it to the hole',description:s=>{const {bags,cost}=provisionedDelivery(s);return `${bags} ${bags===1?'bag':'bags'}, $${cost}. ${s.flags.wagon?'One wagon trip.':'Only what you can carry.'} Food for the hole, not for you.`;},category:'care',subcategory:'feeding',requirement:()=>0,desire:.45,weight:18,
+  {id:'provision_and_feed',label:'Buy food and take it to the hole',description:s=>{const {bags,cost}=provisionedDelivery(s);return `${bags} ${bags===1?'bag':'bags'}, $${cost}. ${s.flags.wagon?'One wagon trip.':'Only what you can carry.'} You handle the food this part of the day.${s.flags.careContract&&hasHelper(s)?' Your helper waits.':''} Hunger grows again afterward.`;},category:'care',subcategory:'feeding',requirement:()=>0,desire:.45,weight:18,
     when:s=>f(s,'pactMade')&&s.stats.hunger>=18&&s.money>=(f(s,'surplusDeal')?4:6),
     effects:s=>{const {bags,cost}=provisionedDelivery(s);return {money:-cost,rapture:4,disquiet:1,relationships:{friend:.5},progress:{feeds:1,bagsDelivered:bags}};},
-    outcome:s=>scene('The trip',s.flags.wagon?'the wheels stop.\n\n**below, the bags opening**\n\nyou can bear the afternoon.':'handles against your fingers.\n\n**the sound again**\n\nsuch a little while since last time.')},
+    outcome:s=>{
+      const passages=s.flags.wagon?[
+        'the wheels stop.\n\n**below, feeding**\n\nyou take the handle again.',
+        'the wagon empty again.\n\n**still chewing**\n\nyou take the handle.',
+        'wheels over the last root.\n\nyou lift the food.\n\n**feeding below**',
+        'you set the handle down.\n\nfeed it.\n\nwait before taking the handle again.',
+        'the food gone.\n\nyou turn the wagon.\n\nthe wheel catches in the same rut.'
+      ]:[
+        'handles against your fingers.\n\n**the sound again**\n\nsuch a little while since last time.',
+        'the weight gone from your hands.\n\n**feeding below**\n\nyou stay a moment.',
+        'you change hands at the trees.\n\nempty them at the hole.',
+        'the food disappears.\n\nyou rub your fingers.\n\nstart back.',
+        'you lower the food carefully.\n\n**chewing**\n\nyour hands back in your pockets.'
+      ];
+      const visits=s.progress?.visits_provision_and_feed??(s.history||[]).filter(entry=>entry.id==='provision_and_feed').length;
+      return scene('The trip',passages[visits%passages.length]);
+    }},
   {id:'emergency_delivery',label:'Ask for food on credit; bring it to the hole',description:'The market writes it down. Take two bags into the woods. The debt remains.',category:'care',subcategory:'emergency',requirement:()=>0,challenge:1,desire:.2,weight:2,
     when:s=>f(s,'pactMade')&&s.stats.hunger>=60&&s.food<1&&s.money<6,
     effects:()=>({rapture:-2,disquiet:2,progress:{feeds:1,bagsDelivered:2,foodDebt:14}}),outcome:()=>scene('Your name in the book','two bags.\n\n“next payday.”\n\nyou carry them straight to the woods.')},
   {id:'night_rest',label:'Let the night pass',description:'Sleep, or try. The day is counted. Hunger does not sleep.',category:'night',subcategory:'sleep',requirement:()=>0,desire:0,
-    effects:s=>({rapture:10+Math.min(4,s.lifestyle/20),disquiet:-nightlyDisquietRelief(s)}),outcome:()=>scene('Night','you lie down.\n\nthe room goes dark.')},
+    effects:s=>({rapture:10+Math.min(4,s.lifestyle/20),disquiet:-nightlyDisquietRelief(s)}),outcome:s=>{
+      const passages=[
+        'you lie down.\n\nthe room goes dark.',
+        'shoes off.\n\nyou leave the rest for morning.',
+        'you straighten one corner of the sheet.\n\nget under it.',
+        'the clock turned away.\n\nyou switch off the light.',
+        'you put your keys down.\n\nnothing more tonight.',
+        'you sit on the edge of the bed.\n\nthen lie down.',
+        'the room quiet.\n\nyou turn toward the wall.'
+      ];
+      const visits=s.progress?.visits_night_rest??(s.history||[]).filter(entry=>entry.id==='night_rest').length;
+      return scene('Night',passages[visits%passages.length]);
+    }},
   {id:'stock_gamble',label:'Put $80 on the stock you cannot stop thinking about',description:'A fictional stock. Your savings. You have studied it, but certainty should not feel like this.',category:'career',subcategory:'breakthrough',requirement:12,challenge:4,desire:.9,weight:35,
     when:s=>f(s,'foodStrain')&&!f(s,'stockPosition')&&!f(s,'stockWon')&&s.skills.finance>=2&&s.skills.coding>=1&&s.money>=80,
     effects:s=>({money:-80,rapture:-5,disquiet:3,progress:{stockBoughtAt:s.hours-p(s,'stockBoughtAt')},flags:{stockPosition:true}}),outcome:()=>({title:'The order',text:'eighty dollars.\n\nyou check the symbol.\n\nagain.\n\nyou know.\n\nthat is the frightening part.',presentation:'scene'})},
