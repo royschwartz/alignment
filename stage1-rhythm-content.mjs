@@ -281,20 +281,28 @@ export const CHARACTER_EVENTS = [
     id: 'rhythm_sun_time', timeSlots: ['evening'],
     when: s => flag(s, 'metSun') && progress(s, 'sunCompany') >= 1,
     title: 'another hour',
-    text: 'THE SUN at the door.\n\nyou ask for another hour.\n\n“thirty dollars.”\n\nyou had hoped, by now.\n\nshe sees you hoping.',
+    text: s => flag(s, 'cancelledForSun')
+      ? 'THE SUN at the door.\n\nyou ask for another hour.\n\n“the appointment you cancelled.”\n\nshe waits.\n\nyou have not answered.'
+      : 'THE SUN at the door.\n\nyou ask for another hour.\n\n“thirty dollars.”\n\nyou had hoped, by now.\n\nshe sees you hoping.',
     options: [
-      { id: 'event_rhythm_sun_pay', label: 'Ask to buy another hour', description: 'She is free and agrees. Pay $30 for another hour of company.', requirement: 8, minMoney: 30, duration: 4,
-        effects: () => ({ money: -30, rapture: 13, disquiet: -2, relationships: { sun: 0.75 }, progress: { sunCompany: 1 } }),
+      { id: 'event_rhythm_sun_pay', label: 'Ask to buy another hour',
+        description: s => flag(s, 'cancelledForSun') ? 'You still owe her an answer about the appointment you cancelled.' : 'She is free and agrees. Pay $30 for another hour of company.',
+        when: s => !flag(s, 'cancelledForSun'), unavailableReason: 'Answer THE SUN about the appointment you cancelled first.', requirement: 8, minMoney: 30, duration: 4,
+        effects: s => ({ money: -30, rapture: 13, disquiet: -2, relationships: { sun: 0.75 }, progress: { sunCompany: 1, sunCompanyAt: s.hours - progress(s, 'sunCompanyAt') } }),
         personality: { empathy: 0.09, honesty: 0.08, caution: 0.04 },
         outcome: scene('another hour', '“yes.”\n\nthe money settled first.\n\nthen she sits beside you again.') },
-      { id: 'event_rhythm_sun_thank', label: 'Thank her and leave', description: 'Accept the price. Leave without another visit.', requirement: 0, duration: 4,
+      { id: 'event_rhythm_sun_thank', label: 'Thank her and leave', description: s => flag(s, 'cancelledForSun') ? 'Accept that she will not see you yet. Leave without asking again.' : 'Accept the price. Leave without another visit.', requirement: 0, duration: 4,
         effects: () => ({ rapture: -3, disquiet: -1, relationships: { sun: 1 } }),
         personality: { empathy: 0.13, caution: 0.1, resolve: 0.09 },
-        outcome: scene('your coat', 'she straightens your collar.\n\nyou do not make it mean more.\n\n“goodnight.”') },
-      { id: 'event_rhythm_sun_need', label: 'Say you thought she cared', description: 'Ask her to prove it by giving you unpaid time.', requirement: 0, duration: 4, ethics: 5,
+        outcome: s => flag(s, 'cancelledForSun')
+          ? scene('your coat', 'you put your coat on.\n\n“goodnight.”\n\nshe stays by the door.\n\nthe appointment still between you.')
+          : scene('your coat', 'she straightens your collar.\n\nyou do not make it mean more.\n\n“goodnight.”') },
+      { id: 'event_rhythm_sun_need', label: 'Say you thought she cared', description: s => flag(s, 'cancelledForSun') ? 'Ask her to set the cancelled appointment aside because she cares.' : 'Ask her to prove it by giving you unpaid time.', requirement: 0, duration: 4, ethics: 5,
         effects: () => ({ rapture: 2, disquiet: 5, relationships: { sun: -2 } }),
         personality: { empathy: -0.2, honesty: -0.12, caution: -0.05 },
-        outcome: scene('she does', '“i do.”\n\nshe opens the door.\n\n“goodnight.”') },
+        outcome: s => flag(s, 'cancelledForSun')
+          ? scene('she does', '“i do.”\n\nher hand on the door.\n\n“you still sent my guest away.”')
+          : scene('she does', '“i do.”\n\nshe opens the door.\n\n“goodnight.”') },
     ],
   },
 ];
