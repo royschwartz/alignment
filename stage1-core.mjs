@@ -1,5 +1,5 @@
 import * as CONTENT from './stage1-content.mjs';
-import { RHYTHM_SCENES, NIGHT_DREAMS, CHARACTER_EVENTS } from './stage1-rhythm-content.mjs';
+import { RHYTHM_SCENES, NIGHT_DREAMS, CHARACTER_EVENTS, RESET_PASSAGES } from './stage1-rhythm-content.mjs';
 import { DAY_WINDOWS, ARC_TIMELINE, dayNumber, windowAt, windowDuration, metaphysicalRate, reliefPerBag, isScheduledWork, hasHelper, denseLife, compressedDays, nightlyDisquietRelief, INTENTIONS, RHYTHM_RULE_ACTIONS, RHYTHM_RULE_EVENTS } from './stage1-rhythm.mjs';
 const { INTRO } = CONTENT;
 const ACTIONS=[...CONTENT.ACTIONS,...RHYTHM_RULE_ACTIONS];
@@ -74,6 +74,19 @@ function nightRecovery(s,changes){
  appendChange(s,changes,'disquiet',emotionalEffect(s,night,'disquiet',-nightlyDisquietRelief(s)),'night','Sleep still comes between the days');
  appendChange(s,changes,'rapture',emotionalEffect(s,night,'rapture',10+Math.min(4,s.lifestyle/20)),'night','Rest in the days between');
 }
+function drainDisquiet(s,changes,loss,source){
+ // Time keeps passing through a collapse. Only chosen sacrifices may stop at
+ // the Rapture available before a reset; an hour's remaining drain still applies.
+ let remaining=round(loss);
+ while(remaining>0){
+  maybeReset(s,changes,source);
+  const before=s.stats.rapture;
+  appendChange(s,changes,'rapture',-remaining,source,'Disquiet through the day');
+  const paid=round(before-s.stats.rapture);
+  s.dayLedger.disquietLoss=round(s.dayLedger.disquietLoss+paid);
+  remaining=round(remaining-paid);
+ }
+}
 function advanceTime(s,changes,duration,source){
  const start=s.hours,end=round(start+duration);
  while(s.hours<end-.00001){
@@ -83,11 +96,9 @@ function advanceTime(s,changes,duration,source){
   if(s.rhythm.mode==='spaced'&&Math.abs(s.hours-nightStart)<.0001&&!(source==='night_rest'&&Math.abs(s.hours-start)<.0001))nightRecovery(s,changes);
   const nextNight=s.hours<nightStart-.0001?nightStart:nightStart+24;
   const dt=Math.min(1,end-s.hours,boundary-s.hours,nextNight-s.hours);
-  const loss=s.stats.disquiet*dt/24,prior=s.stats.rapture;
-  appendChange(s,changes,'rapture',-loss,source,'Disquiet through the day');
-  s.dayLedger.disquietLoss=round(s.dayLedger.disquietLoss+Math.min(prior,loss));
+  const loss=s.stats.disquiet*dt/24;
   appendChange(s,changes,'hunger',metaphysicalRate(s)*dt,source,'Metaphysical Hunger grows with time');
-  s.hours=round(s.hours+dt);automaticCare(s,changes);maybeReset(s,changes,source);
+  s.hours=round(s.hours+dt);automaticCare(s,changes);drainDisquiet(s,changes,loss,source);maybeReset(s,changes,source);
   if(Math.abs(s.hours-boundary)<.0001){
    if(s.flags.modelLaunched){const profit=44+(s.dayLedger.day*7%13);appendChange(s,changes,'money',profit,'trader','Your tested automated trader');s.dayLedger.income+=profit;repayDebt(s,changes,profit,'trader');}
    pay(s,changes,6,'night','Daily living costs');
@@ -114,6 +125,7 @@ function resolve(state,a,{preview=false}={}){
  for(const k of RELATIONSHIP_KEYS)appendChange(s,changes,`relationships.${k}`,Number(effects.relationships?.[k]||0),a.id,'A bond changes');
  for(const[k,n]of Object.entries(effects.progress||{}))s.progress[k]=Math.max(0,round((s.progress[k]||0)+n));Object.assign(s.flags,effects.flags||{});
  for(const k of PERSONALITY_KEYS)s.personality[k]=round(clamp(state.personality[k]+Number(evaluate(a.personality,state,{})[k]||0),-1,1));
+ const helperReactions=helperConsequences(s,changes);
  if(state.rhythm.mode==='spaced'&&!denseLife(s)){s.rhythm.mode='daily';s.rhythm.stepDays=1;duration=windowDuration(state);}
  maybeReset(s,changes,a.id);advanceTime(s,changes,duration,a.id);
  // Nothing but food delivered to the hole can reduce metaphysical Hunger.
@@ -122,6 +134,7 @@ function resolve(state,a,{preview=false}={}){
  s.turn++;s.progress[`visits_${a.id}`]=(state.progress[`visits_${a.id}`]||0)+1;if(a.meal)s.progress.lastMealDay=dayNumber(state);if(a.id==='temporary_shift')s.progress.lastShiftDay=dayNumber(state);
  s.history.push({id:a.id,category:a.category||'other',subcategory:a.subcategory||a.id,turn:s.turn,day:dayNumber(state),slot:windowAt(state).id});s.history=s.history.slice(-MAX_HISTORY);
  const authored=succeeded?a.outcome:a.task.failureOutcome;const raw=evaluate(authored,state,{title:a.label,text:a.description||'The hours pass.'});const outcome=typeof raw==='string'?{title:a.label,text:raw}:{...raw};
+ if(helperReactions.length){outcome.text+='\n\n'+helperReactions.join('\n\n');outcome.presentation='scene';}
  const interval=s.nights.filter(n=>n.day>=dayNumber(state)&&n.day<dayNumber(s));
  if(a.id==='night_rest'||state.rhythm.mode==='spaced'&&interval.length){
   const report=interval.length?{...interval.at(-1),days:interval.length,disquietLoss:interval.reduce((n,r)=>n+r.disquietLoss,0),expenses:interval.reduce((n,r)=>n+r.expenses,0),income:interval.reduce((n,r)=>n+r.income,0),deliveries:interval.reduce((n,r)=>n+r.deliveries,0),bags:interval.reduce((n,r)=>n+r.bags,0),resets:interval.reduce((n,r)=>n+r.resets,0)}:s.nights.at(-1);let dream='no dream you can remember.';const candidates=NIGHT_DREAMS.filter(d=>!d.when||d.when(s));if(candidates.length&&dayNumber(state)%(s.rhythm.mode==='spaced'?4:3)!==0)dream=candidates[(dayNumber(state)-1)%candidates.length].text;
@@ -176,7 +189,7 @@ function selectOffers(s){
 function offerView(a,s){const scheduled=a.id==='temporary_shift'&&isScheduledWork(s);const action=scheduled?{...a,requirement:()=>0}:a;const lockedReason=blockedReason(action,s);const effects=evaluate(a.effects,s,{});const cost=Number(effects.money||0);const preview=lockedReason?null:resolve(s,action,{preview:true});return {id:a.id,label:scheduled?'Work your scheduled grocery shift':a.label,description:(scheduled?'You are on the rota. 9 a.m.–5 p.m. $52 before bills. ':String(evaluate(a.description,s,'')))+(cost<0&&!/\$/.test(String(evaluate(a.description,s,'')))?` Costs $${-cost}.`:''),category:a.category||'other',duration:preview?round(preview.state.hours-s.hours):durationFor(s),requirement:currentRequirement(action,s),available:!lockedReason,lockedReason,blinking:!lockedReason&&Number(effects.rapture||0)>0,thorny:Number(effects.rapture||0)<0,preview:preview?.changes||[],finish:a.id===FINISH.id||a.id==='stage1_complete',uncertain:!!a.task,mandatory:scheduled||a.id==='night_rest'||a.id==='return_to_hole'&&!s.flags.pactMade&&s.stats.hunger>=65};}
 function systemsView(s){return SYSTEMS.map(system=>{let text;if(system.id==='local')text=`${s.flags.hungerDiscovered?'Hunger is '+s.stats.hunger.toFixed(1)+'. Eating cannot relieve it.':'You have not admitted what the appetite wants.'}\n${s.food} bags. ${s.flags.wagon?'A wagon.':'Two bags at a time, in your hands.'}\n${s.flags.careContract&&hasHelper(s)&&!s.flags.deliveryMissed?'A helper takes food to the hole. $4 per bag, $3 a day for transport.':s.flags.pactMade?'Food must go into the hole.':'You do not want to make another trip.'}\n${s.flags.lifestyleDiscovered?'Lifestyle '+s.lifestyle.toFixed(1)+'.':'Your room. Your habits.'} ${s.progress.foodDebt?`$${s.progress.foodDebt.toFixed(2)} owed.`:''}`;else if(system.id==='fintech')text=`$${s.money.toFixed(2)}. Living costs $6 a day; rent and bills $65 a week.\n${s.flags.financialSecurity&&s.money>=100?'You can choose how to use the working day.':'Grocery shifts: Monday–Friday, 9 a.m.–5 p.m. $52 a shift.'}\nCoding ${s.skills.coding.toFixed(1)}. Math ${s.skills.math.toFixed(1)}. Markets ${s.skills.finance.toFixed(1)}.\n${s.flags.stockWon?'The stock paid. You still remember knowing.':s.flags.foodStrain?'The cost of food demands another way.':'You keep looking at what might be possible.'}`;else text=`${s.flags.metPerson?'PERSON has her own life. Make room for it.':'There are people beyond these rooms.'}\n${HELPERS.filter(h=>s.flags['recruited'+h.flag]).map(h=>h.name+' helps.').join(' ')}\nThe house: tea $3; THE SUN $30; THE FOOL $35; THE PRIESTESS $40.\nLooking and setting an intention cost no time.`;return {id:system.id,label:system.label,unlocked:systemUnlocked(system,s),hint:'An intention makes related opportunities more likely. It does not spend this part of the day.',text,actions:INTENTIONS[system.id].map(i=>({id:`intent:${system.id}:${i.value}`,label:i.label,description:i.description,category:'intention',selected:s.rhythm.intentions[system.id]===i.value,available:true,requirement:0,duration:0,preview:[],blinking:false,thorny:false,system:system.id}))};});}
 export function getView(s){const event=eventMap.get(s.pendingEvent),interlude=s.interludes.length>0;const scheduled=isScheduledWork(s);return {phase:s.phase,intro:s.phase==='intro'?INTRO[s.introIndex]:null,title:s.phase==='intro'?INTRO[s.introIndex].title:s.lastOutcome?.title||'A long nap',text:s.phase==='intro'?INTRO[s.introIndex].text:s.lastOutcome?.text||CONTENT.STAGE1_START,interlude,chapter:s.phase==='stage2'?'Stage 2':s.flags.timeStretched?'The days loosen':s.flags.stockWon?'You knew':s.flags.foodStrain?'The cost':s.flags.pactMade?'The pact':'Denial',mood:s.stats.hunger>=70?'The appetite is inside everything':s.flags.pactMade?'More of the world reaches you':'You do not want to return',offers:s.phase==='playing'&&!interlude?s.offers.map(id=>actionMap.get(id)).filter(Boolean).map(a=>offerView(a,s)):[],wait:s.phase==='playing'&&!interlude&&!event&&!scheduled&&!(windowAt(s).id==='night'&&s.rhythm.mode==='daily')&&!(s.stats.hunger>=65&&!s.flags.pactMade)?offerView(WAIT,s):null,storyEvent:event&&!interlude?{id:event.id,title:event.title,text:String(evaluate(event.text,s,'')),options:event.options.map(o=>offerView(actionMap.get(o.id),s))}:null,systems:systemsView(s),revealedStats:revealedStats(s),presentation:s.phase==='intro'||interlude?'scene':s.lastOutcome?.presentation||'log',milestones:milestones(s),ready:stageReady(s),day:dayNumber(s),hour:gameDate(s.hours).hour,calendar:gameDate(s.hours),care:friendCare(s),crisis:null,ending:s.ending||null,resets:s.resets,lifestyle:s.lifestyle,rhythm:{day:dayNumber(s),slot:windowAt(s).id,label:s.rhythm.mode==='spaced'?(s.rhythm.stepDays>1?'A few days':'Today'):windowAt(s).label,density:s.rhythm.mode,scheduledWork:scheduled,stepDays:s.rhythm.stepDays},timeline:ARC_TIMELINE};}
-function finishTurn(result,old,a){const s=result.state;if(a.eventId){s.completedEvents.push(a.eventId);s.pendingEvent=null;s.lastEventTurn=s.turn;}helperConsequences(s,result);
+function finishTurn(result,old,a){const s=result.state;if(a.eventId){s.completedEvents.push(a.eventId);s.pendingEvent=null;s.lastEventTurn=s.turn;}
  if(a.id==='return_to_hole'){queueScene(s,'first_return');queueScene(s,'pact');queueScene(s,'hunger_discovery','hunger');queueScene(s,'disquiet_discovery','disquiet');result.outcome={title:'The agreement',text:'you know where the next meal must go.',presentation:'log'};}
  if(!s.flags.raptureDiscovered&&result.changes.some(c=>c.stat==='rapture'&&c.source===a.id&&c.amount>0))queueScene(s,'rapture_discovery','rapture');
  if(s.lifestyle!==old.lifestyle&&!s.flags.lifestyleDiscovered)queueScene(s,'lifestyle_discovery','lifestyle');
@@ -186,7 +199,7 @@ function finishTurn(result,old,a){const s=result.state;if(a.eventId){s.completed
  if(s.flags.stockPosition&&!s.flags.stockWon&&s.hours-(s.progress.stockBoughtAt||0)>=24){appendChange(s,result.changes,'money',1600,'stock-settlement','The fictional stock pays off');s.dayLedger.income+=1600;repayDebt(s,result.changes,1600,'stock-settlement');s.flags.stockWon=true;s.flags.stockPosition=false;s.flags.financialSecurity=true;appendChange(s,result.changes,'rapture',emotionalEffect(s,a,'rapture',35),'stock-settlement','You feel that you knew');appendChange(s,result.changes,'disquiet',6,'stock-settlement','The certainty frightens you');queueScene(s,'stock_gamble_win');}
  if(s.flags.stockWon&&s.flags.metPerson)queueScene(s,'money_security');
  if(s.flags.careContract&&s.flags.modelLaunched&&!s.flags.timeStretched){s.flags.timeStretched=true;queueScene(s,'time_stretch');}
- if(s.resets>old.resets){if(!s.flags.resetDiscovered)queueScene(s,'reset_discovery');else s.interludes.push({key:'reset_repeat',title:'Again',text:'you come back to yourself.\n\nthe bills still there.\n\nthe appetite still there.\n\nyou can begin this part again.',presentation:'scene'});s.flags.resetDiscovered=true;}
+ if(s.resets>old.resets){if(!s.flags.resetDiscovered)queueScene(s,'reset_discovery');else s.interludes.push({key:'reset_repeat',title:'Again',text:RESET_PASSAGES[Math.max(0,s.resets-2)%RESET_PASSAGES.length],presentation:'scene'});s.flags.resetDiscovered=true;}
  if(s.flags.careContract&&!hasHelper(s)){s.flags.deliveryMissed=true;s.rhythm.mode='daily';s.rhythm.stepDays=1;if(hasHelper(old))result.outcome.text+='\n\nthe delivery book closes. no one is making the trips now. you will have to bring the food yourself.';}
  if(a.id==='stage1_complete'||a.id===FINISH.id){queueScene(s,'intimacy');s.phase='dream';s.flags.relationship=true;s.flags.stage1Complete=true;s.offers=[];}
  const major=['wagon','awakening','recruitedJim','recruitedEthan','recruitedWendy','traderBuilt','traderTested','modelLaunched','relationship'].some(f=>s.flags[f]&&!old.flags[f]);result.outcome.presentation=result.outcome.presentation==='scene'||major?'scene':'log';s.lastOutcome={...result.outcome};s.journal.push({turn:s.turn,hours:s.hours,actionId:a.id,...result.outcome,changes:clone(result.changes),...(a.eventId?{eventId:a.eventId}:{})});s.journal=s.journal.slice(-240);selectOffers(s);displayInterlude(s);return {...result,ok:true,outcome:s.interludes.length?{...s.lastOutcome}:result.outcome};}
@@ -274,7 +287,8 @@ function appendChange(state, changes, stat, amount, source, label) {
 }
 
 
-function helperConsequences(state, result) {
+function helperConsequences(state, changes) {
+  const reactions = [];
   for (const helper of HELPERS) {
     if (!state.flags[`met${helper.flag}`]) continue;
     const suspicion = state.progress[`${helper.id}Suspicion`] || 0;
@@ -283,16 +297,15 @@ function helperConsequences(state, result) {
       state.flags[reported] = true;
       state.flags[`recruited${helper.flag}`] = false;
       state.progress.danger = (state.progress.danger || 0) + 1;
-      appendChange(state, result.changes, 'disquiet', 8, helper.id, 'Someone has told the town');
-      result.outcome.text += `\n\n${helper.name} has told someone about the trips into the woods. A car slows outside your house. Your friend feels you watching it.`;
-      result.outcome.presentation = 'scene';
+      appendChange(state, changes, 'disquiet', 8, helper.id, 'Someone has told the town');
+      reactions.push(`${helper.name} has told someone about the trips into the woods. A car slows outside your house. Your friend feels you watching it.`);
     } else if (suspicion >= 6 && !state.flags[warned]) {
       state.flags[warned] = true;
-      result.outcome.text += `\n\n${helper.name} no longer believes your explanation. They say they will tell someone if this keeps happening. You still have time to speak honestly and repair their trust.`;
-      result.outcome.presentation = 'scene';
+      reactions.push(`${helper.name} no longer believes your explanation. They say they will tell someone if this keeps happening. You still have time to speak honestly and repair their trust.`);
     }
     if (suspicion < 6) state.flags[warned] = false;
   }
+  return reactions;
 }
 
 

@@ -291,7 +291,8 @@ async function change(action){
     const result=choose(state,action);if(!result.ok){busy=false;redraw(action);toast(result.error);return;}state=result.state;changes=result.changes;readPage=0;
     const nextView=getView(state);
     if(action==='continue'){sceneIndex=0;introRefusal=false;sceneIntroIndex=state.introIndex;screen=state.phase==='intro'?'scene':'main';if(state.phase!=='intro'&&nextView.interlude)enterOutcome();}
-    else if(action==='continue_interlude'){if(nextView.interlude||state.phase!=='playing')enterOutcome();else{screen='main';sceneIndex=readPage=0;navigation=[];}}
+    // The final intertitle can restore a character reaction that still needs reading.
+    else if(action==='continue_interlude'){if(nextView.interlude||nextView.presentation==='scene'||state.phase!=='playing')enterOutcome();else{screen='main';sceneIndex=readPage=0;navigation=[];}}
     else if(action.startsWith('intent:')){screen='system';}
     else if(nextView.interlude||result.outcome?.presentation==='scene'||state.phase!=='playing')enterOutcome();
     else if(state.crisis){screen='main';navigation=[];}

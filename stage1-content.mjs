@@ -648,7 +648,7 @@ ACTIONS.push(...PEOPLE.flatMap(person => [
     id: `reassure_${person.key}`, system: 'social', label: `Answer ${person.name}’s questions`, category: 'town', subcategory: 'trust', duration: 2,
     description: 'They have noticed something. Listen, admit what you know, and let them set their own limits.', requirement: 22,
     when: available(s => f(s, `met${person.flag}`) && (p(s, `${person.key}Suspicion`) > 0 || f(s, `reported${person.flag}`))), weight: s => 8 + p(s, `${person.key}Suspicion`), desire: 0.48,
-    effects: () => ({ rapture: -3, disquiet: 1, relationships: { [person.key]: 1 }, progress: { [`${person.key}Suspicion`]: -3 }, flags: { [`reported${person.flag}`]: false } }),
+    effects: s => ({ rapture: -3, disquiet: 1, relationships: { [person.key]: 1 }, progress: { [`${person.key}Suspicion`]: -3 }, flags: { [`reported${person.flag}`]: f(s, `reported${person.flag}`) && Math.max(0, p(s, `${person.key}Suspicion`) - 3) >= 6 } }),
     outcome: () => scene('An answer', `${person.name} asks a question you hoped they would forget. You answer it. They do not agree to everything you want, but they believe you are listening.`)
   }
 ]));
@@ -719,7 +719,9 @@ export const ACTION_PROSE = {
   cafe_person: 'she says yes.\n\ncoffee finished.\n\nneither cup cleared.',
   walk_person: 'her hand on your sleeve. a deer.\n\nyou stop.\n\nsomewhere else, the touch.\n\nshe waits.',
   confide_person: 'the bills. the room.\n\nhow long it has been.\n\nyou stop making it sound over.\n\n“thank you for telling me.”',
-  honest_limit: 'someone depends on you. more than you can explain.\n\n“then tell me when you leave.”\n\nyou agree.',
+  honest_limit: s => f(s, 'personKnowsFriend')
+    ? 'the hole. she knows.\n\n“when will you be back?”\n\nyou give her a time.\n\n“tell me if that changes.”\n\nyou agree.'
+    : 'someone depends on you. more than you can explain.\n\n“then tell me when you leave.”\n\nyou agree.',
   lie_person: '“work.”\n\nshe asks if you have eaten.',
   repair_trust: '“what i told you. it wasn’t true.”\n\n“why?”\n\nyou answer.\n\nshe needs time.',
   accept_help: s => f(s, 'metPerson') ? 'PERSON sets the plate down.\n\nyou begin explaining.\n\n“eat first.”' : 'a chair pulled out.\n\na meal you did not make.\n\nyou sit.',

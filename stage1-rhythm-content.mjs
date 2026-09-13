@@ -302,3 +302,15 @@ export const CHARACTER_EVENTS = [
 // Consequential opportunities already live in ACTIONS. The daily scheduler can
 // reuse them; these additions do not create a second action menu or free turns.
 export const RHYTHM_ACTIONS = [];
+
+// Repeated resets leave the same life in place. Selection is owned by the core.
+export const RESET_PASSAGES = Object.freeze([
+  "the figures on the page.\n\nyour name above them.\n\n…\n\nyou smooth the fold.\n\nread from where you stopped.",
+  "what you said to them.\n\nstill said.\n\n…\n\nyou turn the conversation over once more.\n\nthere are things you can still say.",
+  "the list beside the telephone.\n\nsome things crossed out.\n\n…\n\nyou leave those alone.\n\nlook at what remains.",
+  "the pen where you put it.\n\nthe next box empty.\n\n…\n\nyou pick it up.\n\npause before making the mark.",
+  "a bill folded into thirds.\n\nthe date printed clearly.\n\n…\n\nyou unfold it again.\n\nit can be the first thing.",
+  "you remember how they looked at you.\n\nnot quite what you had meant.\n\n…\n\nyou keep that part.\n\nconsider the rest.",
+  "the room you will return to.\n\nthe things you left unfinished.\n\n…\n\none of them comes to mind.\n\nyou begin there.",
+  "the next meal. the next bill.\n\nsomeone you would like to see.\n\n…\n\nyou put them in order.\n\nchange the order."
+]);
