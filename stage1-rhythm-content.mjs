@@ -261,12 +261,16 @@ export const CHARACTER_EVENTS = [
     id: 'rhythm_fool_no_audience', timeSlots: ['evening'],
     when: s => flag(s, 'metFool') && progress(s, 'foolJokes') >= 2,
     title: 'not that one',
-    text: 'your joke.\n\nTHE FOOL laughs. stops.\n\n“not that one, please.”\n\nyou know a better ending.',
+    text: s => flag(s, 'betrayedFoolName') || flag(s, 'blamedFool')
+      ? 'you try a joke.\n\nTHE FOOL keeps her distance.\n\n“not that one, please.”\n\nyou know a better ending.'
+      : 'your joke.\n\nTHE FOOL laughs. stops.\n\n“not that one, please.”\n\nyou know a better ending.',
     options: [
-      { id: 'event_rhythm_fool_stop', label: 'Stop the joke', description: 'Let the clever ending go. Apologize once.', requirement: 18, duration: 4, challenge: 3,
+      { id: 'event_rhythm_fool_stop', label: 'Stop the joke', description: s => flag(s, 'betrayedFoolName') || flag(s, 'blamedFool') ? 'Let the ending go. Apologize for this joke.' : 'Let the clever ending go. Apologize once.', requirement: 18, duration: 4, challenge: 3,
         effects: () => ({ rapture: -4, disquiet: -1, relationships: { fool: 1.5 } }),
         personality: { empathy: 0.16, resolve: 0.11, honesty: 0.04 },
-        outcome: scene('left unfinished', '“sorry.”\n\nshe nods.\n\nlater, tells you a different one.') },
+        outcome: s => scene('left unfinished', flag(s, 'betrayedFoolName') || flag(s, 'blamedFool')
+          ? '“sorry.”\n\nshe nods.\n\nthis apology is for the joke.'
+          : '“sorry.”\n\nshe nods.\n\nlater, tells you a different one.') },
       { id: 'event_rhythm_fool_leave', label: 'Say goodnight', description: 'Give her space. Keep the ending to yourself.', requirement: 0, duration: 4,
         effects: () => ({ rapture: -2, relationships: { fool: 0.25 } }),
         personality: { caution: 0.09, empathy: 0.07, resolve: 0.03 },

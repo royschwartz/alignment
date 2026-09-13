@@ -128,6 +128,10 @@ function advanceTime(s,changes,duration,source,{manualTrip=false}={}){
 }
 function compactChanges(changes){const groups=new Map();for(const c of changes){const key=[c.stat,c.source,c.label,Math.sign(c.amount)].join('|');const old=groups.get(key);if(old)old.amount=round(old.amount+c.amount);else groups.set(key,{...c});}return [...groups.values()];}
 function nightText(s,report){if(!report)return '';return `Disquiet took ${report.disquietLoss.toFixed(1)} Rapture over ${report.days>1?report.days+' days':'the day'}.\n$${report.expenses.toFixed(2)} spent. $${report.income.toFixed(2)} earned.${report.deliveries?`\n${report.deliveries} deliveries; ${report.bags} bags into the hole.`:''}\nHunger ${report.hungerEnd.toFixed(1)}.${report.resets?` ${report.resets} ${report.resets===1?'reset':'resets'}.`:''}${s.progress.foodDebt?`\n$${s.progress.foodDebt.toFixed(2)} still owed.`:''}`;}
+function rememberedNightText(s,day){
+ const candidates=NIGHT_DREAMS.filter(d=>!d.when||d.when(s));
+ return candidates.length&&day%3!==0?candidates[(day-1)%candidates.length].text:'no dream you can remember.';
+}
 function resolve(state,a,{preview=false}={}){
  const s=clone(state),changes=[];const succeeded=!a.task||preview||random(s)<taskSuccessChance(state,a);const effects=evaluate(succeeded?a.effects:a.task.failureEffects,state,{});const requestedDuration=durationFor(state);let duration=requestedDuration;
  const delivery=['feed_friend','stock_feeder','provision_and_feed','emergency_delivery','return_to_hole'].includes(a.id);
@@ -158,8 +162,11 @@ function resolve(state,a,{preview=false}={}){
  if(helperReactions.length){outcome.text+='\n\n'+helperReactions.join('\n\n');outcome.presentation='scene';}
  const interval=s.nights.filter(n=>n.day>=dayNumber(state)&&n.day<dayNumber(s));
  if(a.id==='night_rest'||(state.rhythm.mode==='spaced'||delivery)&&interval.length){
-  const report=interval.length?{...interval.at(-1),days:interval.length,disquietLoss:interval.reduce((n,r)=>n+r.disquietLoss,0),expenses:interval.reduce((n,r)=>n+r.expenses,0),income:interval.reduce((n,r)=>n+r.income,0),deliveries:interval.reduce((n,r)=>n+r.deliveries,0),bags:interval.reduce((n,r)=>n+r.bags,0),resets:interval.reduce((n,r)=>n+r.resets,0)}:s.nights.at(-1);let dream='no dream you can remember.';const candidates=NIGHT_DREAMS.filter(d=>!d.when||d.when(s));if(candidates.length&&dayNumber(state)%(s.rhythm.mode==='spaced'?4:3)!==0)dream=candidates[(dayNumber(state)-1)%candidates.length].text;
-  outcome.title=a.id==='night_rest'?'Night':outcome.title;outcome.text+=(delivery?'\n\nawake. the night passes on the road.\n\nBefore the food reaches the hole:':a.id==='night_rest'?'\n\n'+dream:'\n\nthe days pass. '+(dayNumber(state)%4===0?dream:''))+'\n\n'+nightText(s,report);outcome.presentation='scene';
+  const report=interval.length?{...interval.at(-1),days:interval.length,disquietLoss:interval.reduce((n,r)=>n+r.disquietLoss,0),expenses:interval.reduce((n,r)=>n+r.expenses,0),income:interval.reduce((n,r)=>n+r.income,0),deliveries:interval.reduce((n,r)=>n+r.deliveries,0),bags:interval.reduce((n,r)=>n+r.bags,0),resets:interval.reduce((n,r)=>n+r.resets,0)}:s.nights.at(-1);
+  // Remember occasional completed nights, including a due night inside a two-day interval.
+  const dreamDay=delivery?undefined:a.id==='night_rest'?dayNumber(state):interval.findLast(n=>n.day%4===0)?.day;
+  const dream=dreamDay===undefined?'':rememberedNightText(s,dreamDay);
+  outcome.title=a.id==='night_rest'?'Night':outcome.title;outcome.text+=(delivery?'\n\nawake. the night passes on the road.\n\nBefore the food reaches the hole:':a.id==='night_rest'?'\n\n'+dream:'\n\nthe days pass.'+(dream?'\n\n'+dream:''))+'\n\n'+nightText(s,report);outcome.presentation='scene';
   if(!delivery){s.rhythm.mode=denseLife(s)?'spaced':'daily';s.rhythm.stepDays=compressedDays(s);}
  }
  if(state.rhythm.mode==='spaced'&&s.hours-state.hours<requestedDuration-.001)outcome.text+=windowAt(s).id==='morning'?'\n\nthe next day needs your attention.':'\n\nthe day needs your attention.';
