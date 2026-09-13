@@ -9,7 +9,10 @@ export const ARC_TIMELINE = Object.freeze({ stage2Months: 6, stage3Years: 2, sta
 export const dayNumber = s => Math.floor(s.hours / 24) + 1;
 export const windowAt = s => DAY_WINDOWS.findLast(w => s.hours % 24 >= w.start - 0.0001) || DAY_WINDOWS[0];
 export const windowDuration = s => Math.max(0.001, windowAt(s).start + windowAt(s).duration - s.hours % 24);
-export const hasHelper = s => ['Jim', 'Ethan', 'Wendy'].some(n => s.flags[`recruited${n}`]);
+const HELPER_NAMES = ['Jim', 'Ethan', 'Wendy'];
+export const hasHelper = s => HELPER_NAMES.some(n => s.flags[`recruited${n}`]);
+export const availableHelpers = (s, at=s.hours) => HELPER_NAMES.filter(n => s.flags[`recruited${n}`] && (s.progress[`${n.toLowerCase()}RestUntil`] || 0) <= at);
+export const hasAvailableHelper = (s, at=s.hours) => availableHelpers(s, at).length > 0;
 export const isScheduledWork = s => windowAt(s).id === 'daytime' && (!s.flags.financialSecurity || s.money < 100) && ![0,6].includes(new Date(Date.UTC(1997,7,6 + dayNumber(s)-1)).getUTCDay());
 export function metaphysicalRate(s) {
   if (!s.flags.pactMade) return 0.9;
@@ -23,7 +26,7 @@ export function manualFoodLoad(s, available=Infinity) {
   const useful=Math.max(0, Math.ceil((projectedArrivalHunger(s)-12)/reliefPerBag(s)-1e-9));
   return Math.min(s.flags.wagon ? 8 : 2, Math.max(0, Math.floor(available)), useful);
 }
-export const denseLife = s => Boolean(s.flags.financialSecurity && s.flags.modelLaunched && s.flags.careContract && hasHelper(s) && s.money >= 120 && s.stats.hunger < 60 && !s.crisis);
+export const denseLife = s => Boolean(s.flags.financialSecurity && s.flags.modelLaunched && s.flags.careContract && hasAvailableHelper(s) && s.money >= 120 && s.stats.hunger < 60 && !s.crisis);
 export const nightlyDisquietRelief = s => 3 + Math.min(3, s.lifestyle / 20);
 export const compressedDays = s => !denseLife(s) ? 1 : s.flags.timeStretched && dayNumber(s)>=30 ? 2 : 1;
 export const INTENTIONS = Object.freeze({

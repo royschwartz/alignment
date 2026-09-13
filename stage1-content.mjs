@@ -100,6 +100,7 @@ export const STAGE1_MILESTONES = [
       : !f(s, 'cafe') ? 'Talk a little, then invite PERSON for coffee.'
       : !f(s, 'walk') ? 'Make time for a walk together.'
       : !f(s, 'confided') ? 'Tell PERSON something true about how you have been.'
+      : !f(s, 'personConfrontationResolved') ? 'PERSON has noticed your absences. A conversation with her is still ahead.'
       : !f(s, 'honestWithPerson') ? 'Be honest about your absences and what you cannot yet explain.'
       : bond(s, 'person') < 11 ? 'Spend time together. Trust grows through ordinary evenings.'
       : 'You are close. Finish the other commitments before asking to be together.'

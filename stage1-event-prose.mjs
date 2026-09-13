@@ -416,10 +416,10 @@ export const EXTRA_STORY_EVENTS = [
     options: [
       {
         id: 'event_ethan_release', label: 'Tell him to go home',
-        description: 'Take responsibility for arranging the collection yourself.', requirement: 24,
+        description: 'Take responsibility for tonight’s collection. ETHAN is off until morning.', requirement: 24, helperBreaks: ['ethan'],
         effects: () => ({ rapture: -3, disquiet: 2, relationships: { ethan: 1 }, progress: { ethanSuspicion: -2 } }),
         personality: { empathy: 0.14, resolve: 0.12, honesty: 0.06 },
-        outcome: { title: 'home', text: 'he picks up his keys.\n\n“thank you.”\n\nyou begin working out the evening.' },
+        outcome: { title: 'home', text: '“until morning.”\n\nhe picks up his keys.\n\n“thank you.”\n\nyou begin working out the evening.' },
       },
       {
         id: 'event_ethan_negotiate', label: 'Ask what he can manage',
