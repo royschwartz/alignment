@@ -321,14 +321,14 @@ export const TOWN_EVENTS = [
   },
   {
     id: 'house_promised_waking', when: s => p(s, 'sunCompany') >= 2 && bond(s, 'sun') >= 3,
-    title: 'At seven',
-    text: '“Wake me at seven,” THE SUN said.\n\nSeven now. Her guest waiting … her cheek against the cushion.\n\nShe worked late yesterday.',
+    title: 'Her guest',
+    text: '“Wake me when my guest arrives.”\n\nHer guest downstairs now … her cheek against the cushion.\n\nShe worked late yesterday.',
     options: [
       {
         id: 'event_house_waking_keep', label: 'Wake her, as she asked', description: 'Her appointment … her decision.', requirement: 12, challenge: 2,
         personality: { honesty: 0.1, empathy: 0.08, resolve: 0.12 },
         effects: () => ({ rapture: -2, disquiet: -1, relationships: { sun: 1 }, flags: { keptSunPromise: true } }),
-        outcome: scene('Seven', 'Her eyes open … “Already?”\n\nA breath. “Thank you.”'),
+        outcome: scene('Awake', 'Her eyes open … “Already?”\n\nA breath. “Thank you.”'),
       },
       {
         id: 'event_house_waking_cover', label: 'Let her sleep; say she is unavailable', description: 'Rest for her … decide without asking.', requirement: 0, ethics: 2,

@@ -102,6 +102,21 @@ export const STAGE1_MILESTONES = [
 ];
 
 export const ACTIONS = [
+  {
+    id: 'wash_one_cup', system: 'local', label: 'Wash one cup', category: 'self', subcategory: 'small_step', duration: 1,
+    description: 'One cup. Give up a little comfort. A small start.', requirement: () => 0,
+    recovery: { ceiling: 50 }, challenge: 2,
+    when: available(s => s.stats.choice < 50 && s.stats.rapture >= 3 * (1 + (s.personality?.resolve || 0) * 0.1) && (!Object.hasOwn(s.progress, 'recoveryAt') || s.hours - p(s, 'recoveryAt') >= 6)),
+    weight: 20, desire: 0.3,
+    effects: s => ({ rapture: -3, disquiet: -1, progress: { recoveryAt: s.hours + 1 - p(s, 'recoveryAt') } }),
+    outcome: s => scene('One thing', vary(s, [
+      'one cup washed.\n\nyou put it away.',
+      'the water warm.\n\nyou finish this one thing.',
+      'a clean rim.\n\nyour hands still wet.',
+      'you nearly leave it.\n\nthen don’t.',
+      'the cup dry.\n\na small space beside the sink.'
+    ], 'wash_one_cup'))
+  },
     {
     id: 'buy_food', system: 'local', label: 'Buy groceries', category: 'care', subcategory: 'supplies', duration: 1,
     description: 'Three bags of food. The shop is still open.', requirement: 6,
@@ -358,7 +373,7 @@ export const ACTIONS = [
   },
     {
     id: 'repair_trust', system: 'social', label: 'Correct the lie', category: 'relationship', subcategory: 'repair', duration: 2,
-    description: 'Tell PERSON you were not at work. Apologize without asking her to make it easy.', requirement: 18,
+    description: 'Tell PERSON what you concealed. Let her ask.', requirement: 18,
     when: available(s => f(s, 'metPerson') && p(s, 'lies') > 0), weight: 14, desire: 0.66, challenge: 5,
     effects: () => ({ disquiet: 6, rapture: -1, relationships: { person: 1 }, progress: { lies: -1 } }),
     outcome: s => scene("The correction", "You tell PERSON you were not at work. She asks why you lied; you answer without making it her fault. She will need time.")
@@ -703,7 +718,7 @@ export const ACTION_PROSE = {
   confide_person: 'the bills. the room.\n\nhow long it has been.\n\nyou stop making it sound over.\n\n“thank you for telling me.”',
   honest_limit: 'someone depends on you. more than you can explain.\n\n“then tell me when you leave.”\n\nyou agree.',
   lie_person: '“work.”\n\nshe asks if you have eaten.',
-  repair_trust: '“i wasn’t working.”\n\n“why did you say it?”\n\nyou answer.\n\nshe needs time.',
+  repair_trust: '“what i told you. it wasn’t true.”\n\n“why?”\n\nyou answer.\n\nshe needs time.',
   accept_help: s => f(s, 'metPerson') ? 'PERSON sets the plate down.\n\nyou begin explaining.\n\n“eat first.”' : 'a chair pulled out.\n\na meal you did not make.\n\nyou sit.',
   take_cash: 'the envelope in your pocket.\n\nyou count the deliveries it will buy.',
   return_cash: 'the money returned. your explanation finished.\n\nthe shopkeeper does not reassure you.',

@@ -279,6 +279,10 @@ function choiceBonus(action, state, changes) {
   // are applied later and cannot earn Choice just by letting time pass.
   if (!changes.some(change => change.stat === 'rapture' && change.amount < 0) || Number(evaluate(action.ethics, state, 0)) > 0) return 0;
   const reward = Number(evaluate(action.challenge, state, 3));
+  if (action.recovery) {
+    const sacrificed = -changes.filter(change => change.source === action.id && change.stat === 'rapture' && change.amount < 0).reduce((sum, change) => sum + change.amount, 0);
+    return Math.min(reward, sacrificed, Math.max(0, action.recovery.ceiling - state.stats.choice));
+  }
   let similarity = 0;
   for (const old of state.history) {
     if (old.id === action.id) return 0;
@@ -351,7 +355,8 @@ function resolve(state, action, { preview = false } = {}) {
     appendChange(next, changes, 'disquiet', -earnedRapture * 0.2, action.id, 'Rapture eases Disquiet');
   }
   const ethics = Math.max(0, Number(evaluate(action.ethics, state, 0)));
-  const bonus = emotionalEffect(state, action, 'choice', choiceBonus(action, state, changes));
+  let bonus = emotionalEffect(state, action, 'choice', choiceBonus(action, state, changes));
+  if (action.recovery) bonus = Math.min(bonus, Math.max(0, action.recovery.ceiling - state.stats.choice));
   appendChange(next, changes, 'choice', bonus, action.id, 'Rapture sacrificed for a decision');
   appendChange(next, changes, 'choice', emotionalEffect(state, action, 'choice', -ethics), action.id, 'A promise to yourself becomes smaller');
   appendChange(next, changes, 'choice', emotionalEffect(state, action, 'choice', Number(effects.choice || 0)), action.id, 'What this decision asks of you');
@@ -390,7 +395,9 @@ function resolve(state, action, { preview = false } = {}) {
   next.history = next.history.slice(-MAX_HISTORY);
   const authoredOutcome = succeeded ? action.outcome : action.task.failureOutcome;
   const result = typeof authoredOutcome === 'function' ? authoredOutcome(state, next) : authoredOutcome;
-  const outcome = typeof result === 'string' ? { title: action.label, text: result } : result || { title: action.label, text: action.description || 'Time passes.' };
+  // Consequences may add a warning to this result. Never mutate shared fiction:
+  // another save, replay, or new campaign must start with the same authored text.
+  const outcome = typeof result === 'string' ? { title: action.label, text: result } : result ? { ...result } : { title: action.label, text: action.description || 'Time passes.' };
   return { state: next, changes, outcome, ...(action.task ? { taskSucceeded: succeeded } : {}) };
 }
 
@@ -468,6 +475,8 @@ function selectOffers(state) {
   const pool = ACTIONS.filter(action => eligible(action, state) && !['stage1_complete', FINISH.id].includes(action.id) && !action.id.startsWith('crisis_'));
   const selected = [];
   if (stageReady(state)) selected.push(actionMap.has('stage1_complete') ? 'stage1_complete' : FINISH.id);
+  const recovery = pool.find(action => action.recovery && !blockedReason(action, state));
+  if (recovery) { selected.push(recovery.id); pool.splice(pool.indexOf(recovery), 1); }
   const weight = action => {
     let value = Math.max(0.01, Number(evaluate(action.weight, state, 1)));
     if (action.category === 'care' && /feed/i.test(action.id)) value *= 1 + state.stats.hunger / 35;

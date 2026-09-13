@@ -1,10 +1,11 @@
 {
-  "version": "1.2.1",
-  "publishedAt": "2026-09-13T00:12:29.110Z",
-  "actions": 96,
+  "version": "1.2.2",
+  "publishedAt": "2026-09-13T00:34:41.663431+00:00",
+  "actions": 97,
   "storyEvents": 26,
   "responses": 78,
   "everydayPassages": 400,
   "housePassages": 120,
-  "sceneRevisions": 45
+  "sceneRevisions": 45,
+  "recoveryPassages": 5
 }

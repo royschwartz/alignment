@@ -6,7 +6,7 @@ A playable, HyperCard-inspired narrative game. August 6, 1997.
 
 Tap to read. Answer the opening prompts, then make a life: work, food, study, friendships, and an increasingly hungry friend. The optional house introduces MADAME, THE PRIESTESS, THE FOOL, and THE SUN.
 
-The chapter contains 96 activities, 520 rotating passages, and 26 mandatory ethical events with 78 responses. Responses shape a hidden personality profile that affects task outcomes and emotional consequences. Once a story event appears, choose a response before ordinary play continues.
+The chapter contains 97 activities, 525 rotating passages, and 26 mandatory ethical events with 78 responses. Responses shape a hidden personality profile that affects task outcomes and emotional consequences. Once a story event appears, choose a response before ordinary play continues.
 
 The prose is intensely elliptical: concrete details, short fragments, things left unsaid. Stage 1 ends with the relationship, the dream, and the Stage 2 entry; the full second chapter awaits its script.
 

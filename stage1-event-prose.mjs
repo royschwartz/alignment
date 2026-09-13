@@ -383,7 +383,7 @@ export const EXTRA_STORY_EVENTS = [
     id: 'care_kitchen_shortage',
     when: state => flag(state, 'surplusDeal') && progress(state, 'feeds') >= 4 && state.food >= 1,
     title: 'one bag',
-    text: 'the community kitchen is short.\n\nyour wagon is loaded.\n\n“could we have one?”\n\nyou counted every bag.',
+    text: 'the community kitchen is short.\n\nyour food packed.\n\n“could we have one?”\n\nyou counted every bag.',
     options: [
       {
         id: 'event_kitchen_give', label: 'Give them one bag',
@@ -404,7 +404,7 @@ export const EXTRA_STORY_EVENTS = [
         description: 'Your friend depends on you. Keep every bag.', requirement: 0,
         effects: () => ({ rapture: 1, disquiet: 2 }),
         personality: { resolve: 0.08, empathy: -0.06, honesty: 0.04 },
-        outcome: { title: 'all of it', text: '“understood.”\n\nthey hold the door.\n\nyou pull the wagon past.' },
+        outcome: { title: 'all of it', text: '“understood.”\n\nthey hold the door.\n\nyou leave. all of it with you.' },
       },
     ],
   },
