@@ -1,5 +1,5 @@
 {
-  "version": "1.4.7",
+  "version": "1.4.8",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 22,
+  "versionCode": 23,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
@@ -31,7 +31,7 @@
   "persistentClock": "top-right-below-striped-bar",
   "painAndNeedMarks": false,
   "eventChoiceLinks": true,
-  "selectionHandScale": 0.8,
+  "selectionHandScale": 0.6,
   "cardSoundEffects": true,
   "cardTopEdges": "stacked",
   "clockStartsAt": "begin",
@@ -40,5 +40,11 @@
   "descriptionTiming": "on-selection",
   "cardFrame": "heavy-black-inset",
   "headerChangeTiming": "on-commitment",
-  "cardTexture": "worn-ink"
+  "cardTexture": "worn-ink",
+  "selectionHandHotspot": {
+    "x": 29,
+    "y": 39,
+    "sourceWidth": 68,
+    "sourceHeight": 90
+  }
 }

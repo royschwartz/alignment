@@ -1,19 +1,19 @@
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.7';
-import { cardChoices } from './author-schema.mjs?v=1.4.7';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.8';
+import { cardChoices } from './author-schema.mjs?v=1.4.8';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.7';
+import {CardAudio} from './card-audio.mjs?v=1.4.8';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.7';
-import {gameClock} from './story-clock.mjs?v=1.4.7';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.8';
+import {gameClock} from './story-clock.mjs?v=1.4.8';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.7';
-import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.7';
-import {drawChoiceCard} from './card-treatments.mjs?v=1.4.7';
-import {drawEventLinks} from './event-links.mjs?v=1.4.7';
-import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.7';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.8';
+import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.8';
+import {drawChoiceCard} from './card-treatments.mjs?v=1.4.8';
+import {drawEventLinks} from './event-links.mjs?v=1.4.8';
+import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.8';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
@@ -411,7 +411,7 @@ try {
     fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
-    const {mountEditor}=await import('./editor-client.mjs?v=1.4.7');
+    const {mountEditor}=await import('./editor-client.mjs?v=1.4.8');
     editor=await mountEditor({
       current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:{type:'logs',id:state.logs.at(-1)||'opening'}),
       apply:(doc,{temporary=false}={})=>{stopStatCue();cardAudio.cancel();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},
