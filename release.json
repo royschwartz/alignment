@@ -1,5 +1,5 @@
 {
-  "version": "1.4.1",
+  "version": "1.4.2",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,12 +16,15 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 16,
+  "versionCode": 17,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
     "height": 960
   },
   "choiceAspectRatio": "182:252",
-  "selectionHoldMs": 650
+  "selectionHoldMs": 650,
+  "cardTransitionMs": 860,
+  "selectionOverlapsTransition": true,
+  "statusPreservesTurnChanges": true
 }

@@ -1,4 +1,3 @@
-import {holdSelectionHand} from './selection-hand.mjs';
 import {phoneScreen} from './phone-screen.mjs';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
 import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs';
@@ -7,11 +6,11 @@ import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs';
+import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
 import {logDateTime} from './story-clock.mjs';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {CardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.2';
 // Display lab: a side copy of the game for trying pain/need card treatments.
 import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs';
 import {mountLab,lab,showDeal} from './lab.mjs';
@@ -389,10 +388,7 @@ async function activate(action) {
     actionPage=(actionPage+(action==='options-next'?1:-1)+Math.ceil(count/CHOICES_PER_PAGE))%Math.max(1,Math.ceil(count/CHOICES_PER_PAGE));redraw();return;
   }
   if (action === 'settings') { $('settings').showModal(); return; }
-  if(state.phase==='playing'&&!prefs.reduceMotion&&hand(state).cards.some(c=>c.action.id===action)) {
-    const preview=choose(state,action);
-    if(preview!==state&&preview.turnedOver!==state.turnedOver)await play('flip',[action],380);
-  }
+  const startedAt=performance.now();
   const from = pixels, before=state, previousLayout=layout, id = ++animationId;
   stopStatCue();sceneSince=performance.now();
   if (action === 'close-log') screen = 'main';
@@ -421,32 +417,16 @@ async function activate(action) {
   const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:136,viewportWidth:width}]));
   const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
-  heldStats=presentedStats(state,HUNGER_INDICATOR).map(([stat,value])=>[stat,feedback.find(f=>f.stat===stat)?.from??value]);
+  heldStats=Object.entries(previousStats);
   const held=draw().pixels;heldStats=null;
-  const selectedCard=previousLayout.cards.find(card=>card.action===action);
   try {
-    await holdSelectionHand({paint,from,context:ctx,image:icons.hand,card:selectedCard,width,height,isCurrent:()=>id===animationId});
-    if(id!==animationId)return;
     if(cardsChanged||feedback.length){
-      await playFormat(new CardTransition({from,to:frame.pixels,held,width,height,
-        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion}),id);
+      await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand}),context:ctx,startedAt,isCurrent:()=>id===animationId});
     }else await dissolve(from,frame.pixels,id);
   }finally {
     if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
   }
-}
-async function playFormat(transition,id){
-  const w=width,h=height;
-  await new Promise(resolve=>{
-    let start;
-    const tick=now=>{
-      if(id!==animationId||w!==width||h!==height){resolve();return;}
-      start??=now;const elapsed=now-start;
-      ctx.drawImage(transition.frame(elapsed),0,0);
-      if(elapsed>=transition.duration)resolve();else requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
 }
 
 function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }

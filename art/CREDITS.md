@@ -1,3 +1,3 @@
 The active selection cue is check-hand.png: WetPaint’s flat hand, People (Hands) 2, Dubl-Click Software, 1986–88. Cropped, cleaned, rotated and reduced to 68 × 90 pixels. Commercial license remains unverified.
 
-After being told of the earlier publication rejection, Roy explicitly requested restoring this exact hand on September 24: “use the hand symbol you had before, don't handdraw I liked it” and “have it linger over ther card a bit”. The original 68 × 90 PNG is unchanged. It holds over the selected card for 650 ms before the transition.
+After being told of the earlier publication rejection, Roy explicitly requested restoring this exact hand on September 24: “use the hand symbol you had before, don't handdraw I liked it” and “have it linger over ther card a bit”. The original 68 × 90 PNG is unchanged. It remains over the selected card for up to 650 ms during the shared 860 ms transition, without adding a separate delay.

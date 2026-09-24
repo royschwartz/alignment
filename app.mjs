@@ -1,4 +1,3 @@
-import {holdSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
 import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs';
 import { cardChoices } from './author-schema.mjs';
@@ -6,11 +5,12 @@ import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs';
+import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
 import {logDateTime} from './story-clock.mjs';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,animatedValue} from './attribute-feedback.mjs';
-import {phoneScreen,cardLayout,PHONE_FONT} from './phone-screen.mjs';
+import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
+import {phoneScreen,PHONE_FONT} from './phone-screen.mjs';
+import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.2';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
@@ -19,25 +19,18 @@ const canvas = $('card'), ctx = canvas.getContext('2d', { willReadFrequently: tr
 // Roy has paused all in-game audio while auditioning alternatives separately.
 const audio = new StackAudio({bank:'silent'}), icons = {};
 let storage;
-try { storage = window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
+try { const memory=new Map();storage=new URLSearchParams(location.search).has('test')?{getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value)}:window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
 let prefs;
 try { prefs = JSON.parse(storage.getItem('alignment.preferences')) || {}; } catch { prefs = {}; }
 prefs = { sound: false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
 audio.enabled = prefs.sound;
 let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
+let heldStats=null,choiceSources={},lastChoiceSource=null;
 const statCues=new Map();let statCueTimer=null;
 function stopStatCue(){clearInterval(statCueTimer);statCueTimer=null;statCues.clear();audio.cancelCues();}
-function startAttributeFeedback(before,after,delay=0){
-  const now=performance.now()+delay,feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
-  audio.unlock();
-  feedback.forEach((change,index)=>{
-    const revealDelay=currentWarning(after)?.revealsRapture?900:260;
-    const delay=(change.reveal?revealDelay:280)+index*100;
-    const start=now+delay+(change.reveal&&change.amount?550:0);
-    statCues.set(change.stat,{...change,start,revealStart:now+delay,end:start+Math.max(1400,change.duration*1000)});
-    if(change.reveal)audio.attribute('reveal',{stat:change.stat,delay:delay/1000});
-    if(change.amount)audio.attribute(change.amount>0?'gain':'loss',{stat:change.stat,duration:change.duration,volume:change.volume/Math.sqrt(feedback.filter(c=>c.amount).length),delay:(start-now)/1000});
-  });
+function startAttributeFeedback(before,after){
+  const now=performance.now(),feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
+  for(const change of feedback)statCues.set(change.stat,{...change,start:now,revealStart:now,end:now+1200});
   if(!feedback.length)return;
   statCueTimer=setInterval(()=>{
     if(busy)return;
@@ -112,20 +105,16 @@ function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (ico
 function header(c, out) {
   // Reserve each attribute's place even while it is hidden. Totals and direct
   // change badges stay in this same slot as other attributes are introduced.
-  presentedStats(state,HUNGER_INDICATOR).forEach(([id,value]) => {
-    const x=headerStatX(id,width);
-    const now=performance.now(),cue=statCues.get(id);
-    if(cue?.reveal&&now<cue.revealStart)return;
-    if(!cue?.reveal||now>=cue.revealStart+1200||prefs.reduceMotion||Math.floor((now-cue.revealStart)/300)%2===0)icon(c,STAT_ICONS[id],x-16,21);
-    text(c,STAT_LABELS[id],x,8,SMALL_FONT,{center:true});
-    const shown=animatedValue(cue,now,prefs.reduceMotion)??value;
-    const number=String(id==='money'?Math.round(shown*100)/100:Math.round(shown*10)/10);
-    text(c,number,x,55,BODY_FONT,{bold:true,center:true});
-    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:55,w:c.measureText(number).width+2,h:14,...hungerTrend(state,HUNGER_INDICATOR)};
-    if(cue?.displayAmount&&now>=cue.start)text(c,signedChange(cue.displayAmount),x,70,SMALL_FONT,{center:true});
+  (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
+    const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
+    if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,54);
+    text(c,STAT_LABELS[id].toUpperCase(),x,97,SMALL_FONT,{center:true});
+    const number=String(id==='money'?Math.round(value*100)/100:Math.round(value*10)/10);
+    text(c,number,x,125,18,{center:true});
+    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:125,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
+    if(cue?.displayAmount&&!heldStats)text(c,signedChange(cue.displayAmount),x,150,SMALL_FONT,{center:true});
   });
-  quiet(c, out, '· ·', width - 45, 16, 44, 48, 'settings', UI.settings);
-  rule(c, 82);
+  quiet(c, out, '· ·', width - 45, 29, 40, 24, 'settings', UI.settings);
 }
 const LOG_MARGIN=12,LOG_PADDING=10;
 const dateBar=()=>logDateTime(UI,state.elapsedMinutes);
@@ -144,10 +133,10 @@ function logRows(c,entries,size) {
     return [...rows.map(row=>({...row,id,entry,autoCenter:rows.length===1,height:size+10})),...badges,{text:'',line:0,entry:null,height:12}];
   });
 }
-function logSheet(c,rows,{y=102,h=140,size=BODY_FONT,bottomInset=12}={}) {
+function logSheet(c,rows,{y=187,h=140,size=BODY_FONT,bottomInset=12}={}) {
   const dateRows=logDateRows(c),dateHeight=logDateHeight(dateRows);
   const x=LOG_MARGIN,w=width-2*LOG_MARGIN,leading=size+10,top=y+12+dateHeight;
-  c.fillStyle='#000';c.fillRect(x+3,y+3,w,h);box(c,x,y,w,h);
+  c.fillStyle='#fff';c.fillRect(x,y,w,h);
   dateRows.forEach((row,index)=>text(c,row.text,x+LOG_PADDING,y+12+index*(SMALL_FONT+4),SMALL_FONT));
   font(c,size);const measure=value=>c.measureText(value).width;
   const offsets=[];let offset=0;for(const row of rows){offsets.push(offset);offset+=row.height;}
@@ -165,9 +154,9 @@ function logSheet(c,rows,{y=102,h=140,size=BODY_FONT,bottomInset=12}={}) {
 function notebook(c,out,entries=logEntries(state)) {
   header(c,out);
   const lines=logRows(c,entries,STORY_FONT);
-  const h=height-202,paginated=logPages(lines,h-72-logDateHeight(logDateRows(c))),pages=paginated.length;
+  const h=height-290,paginated=logPages(lines,h-72-logDateHeight(logDateRows(c))),pages=paginated.length;
   logPage=Math.min(logPage,pages-1);const rows=paginated[logPage];
-  logSheet(c,rows,{y:102,h,size:STORY_FONT,bottomInset:pages>1?60:12});
+  logSheet(c,rows,{y:187,h,size:STORY_FONT,bottomInset:pages>1?60:12});
   if(pages>1){quiet(c,out,'←',34,height-151,48,38,'log-prev');quiet(c,out,`${logPage+1} / ${pages} →`,width-148,height-151,114,38,'log-next');}
   out.logPages=pages;out.text=[dateBar(),rows.map(row=>row.text).join('\n')].filter(Boolean).join('\n');
   button(c,out,UI.return,width-166,height-78,144,56,'close-log');
@@ -183,11 +172,11 @@ function scene(c, out, node, intro = true) {
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
   const bottom = choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
-  const capacity = Math.max(1,Math.floor((bottom-120)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
+  const capacity = Math.max(1,Math.floor((bottom-178)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
   const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
-  const top = Math.max(intro ? 96 : 120, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
+  const top = Math.max(178, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
   const textLayout=TEXT_LAYOUTS[intro?'intro':'messages']?.[node.id]||{};
-  const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:intro?96:120,w:width-2*margin,h:bottom-(intro?96:120)},leading,fontSize:size,top,
+  const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:178,w:width-2*margin,h:bottom-178},leading,fontSize:size,top,
     layout:textLayout,autoCenter:rows.length===1,scaleWidth:width,scaleHeight:height});
   positioned.forEach(row=>text(c,row.text,row.x,row.y,size,options));
   out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
@@ -205,8 +194,8 @@ function scene(c, out, node, intro = true) {
     control(out, UI.next, 1, 1, width - 2, height - 2, 'next');
     return;
   }
-  quiet(c, out, '· ·', 14, 12, 44, 48, 'settings', UI.settings);
-  quiet(c, out, UI.skip, width - 146, 12, 132, 48, 'skip-intro');
+  quiet(c, out, '· ·', 14, 29, 44, 32, 'settings', UI.settings);
+  quiet(c, out, UI.skip, width - 146, 29, 132, 32, 'skip-intro');
   if(page<pages-1){control(out,UI.next,1,70,width-2,height-164,'next');quiet(c,out,'→',width-72,height-78,56,56,'next',UI.next);if(page>0)quiet(c,out,'←',14,height-78,56,56,'scene-prev',UI.back);return;}
   if (choices.length) {
     actionPage=Math.min(actionPage,Math.ceil(choices.length/CHOICES_PER_PAGE)-1);
@@ -223,7 +212,7 @@ function scene(c, out, node, intro = true) {
 }
 function main(c, out) {
   header(c, out);
-  const entry=logEntries(state).at(-1)||{id:null,changes:[]};
+  const entry=statusEntry(state);
   const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS)].filter(Boolean).join('\n');
   const allRows=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null),prose=allRows.filter(row=>!row.tokens),rows=prose.slice(0,3);
   if(prose.length>3)rows[2]={...rows[2],text:rows[2].text+'…'};
@@ -245,6 +234,10 @@ function draw() {
   const c = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
   c.canvas.width = width; c.canvas.height = height; box(c, 0, 0, width, height);
   const out = { buttons: [], cards: [], text: '', scene: null };
+  // Plain classic window chrome, shared with the approved granola study.
+  c.strokeStyle='#000';c.beginPath();c.moveTo(1,26.5);c.lineTo(width-1,26.5);c.stroke();
+  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,width/2-85,1);}
+  text(c,'A L I G N M E N T',width/2,7,11,{bold:true,center:true});
   if (editorPreview) {
     const {type,id}=editorPreview;
     if(type==='intro') scene(c,out,{...(INTRO.find(n=>n.id===id)||INTRO[0])});
@@ -280,7 +273,7 @@ function redraw() {
 }
 function resize() {
   stopStatCue();
-  animationId++; busy = false;
+  animationId++; heldStats=null; busy = false;
   lastViewportWidth=document.documentElement.clientWidth;
   ({width,height}=phoneScreen(lastViewportWidth,window.visualViewport?.height||innerHeight));
   canvas.width=width;canvas.height=height;
@@ -311,29 +304,51 @@ async function activate(action) {
     actionPage=(actionPage+(action==='options-next'?1:-1)+Math.ceil(count/CHOICES_PER_PAGE))%Math.max(1,Math.ceil(count/CHOICES_PER_PAGE));redraw();return;
   }
   if (action === 'settings') { $('settings').showModal(); return; }
-  const selectedCard=layout.cards?.find(card=>card.action===action);
-  const from = pixels, id = ++animationId;
+  const startedAt=performance.now();
+  const from = pixels, before=state, previousLayout=layout, id = ++animationId;
   stopStatCue();
   if (action === 'close-log') screen = 'main';
   else { const next = choose(state, action); if (next === state) return;
-    startAttributeFeedback(state,next,selectedCard?SELECTION_HOLD_MS:0);
     const warningStep=!!next.hesitation||!!state.hesitation&&next.events.length===state.events.length;
     state = next; screen = 'main'; if(!warningStep)actionPage=0;textPage=0;
   }
   // Persist the committed choice before the animation, including refusal/reading position.
   save(); busy = true; $('controls').replaceChildren(); audio.unlock();
   if (state.phase === 'intro' && currentNode(state).kind === 'feeding') audio.feed();
-  const frame = draw();
-  try {
-    await holdSelectionHand({paint,from,context:ctx,image:icons.hand,card:selectedCard,width,height,isCurrent:()=>id===animationId});
-    if(id===animationId)await dissolve(from,frame.pixels,id);
+  const feedback=attributeFeedback(before,state,HUNGER_INDICATOR);
+  const event=state.events.at(-1),outcomeArrived=event&&!state.message&&(state.events.length>before.events.length||!!before.message);
+  const amounts=outcomeArrived?eventChanges(event):[];
+  const previousStats=Object.fromEntries(presentedStats(before,HUNGER_INDICATOR));
+  for(const [stat,value] of presentedStats(state,HUNGER_INDICATOR))if(amounts.some(c=>c.stat===stat)&&!feedback.some(f=>f.stat===stat))feedback.push({stat,from:previousStats[stat]??value,to:value,amount:0,displayAmount:0});
+  const selected=action==='warn-yes'?before.hesitation?.action:action;
+  if(state.events.length>before.events.length){
+    // Keep the chosen geometry through authored intertitles, without adding it to saves.
+    if(!currentWarning(before)){
+      choiceSources=Object.fromEntries(previousLayout.cards.map(c=>[c.action,{...c}]));lastChoiceSource=choiceSources[selected]||null;
+    }
+  }else if(before.phase==='playing'&&!before.message&&!currentWarning(before)&&currentWarning(state)){
+    choiceSources=Object.fromEntries(previousLayout.cards.map(c=>[c.action,{...c}]));lastChoiceSource=choiceSources[selected];
   }
-  finally { if (id === animationId) { busy = false; pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls(); } }
+  const frame=draw(),cardsChanged=previousLayout.cards.length||frame.layout.cards.length;
+  const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:136,viewportWidth:width}]));
+  const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
+  const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
+  heldStats=Object.entries(previousStats);
+  const held=draw().pixels;heldStats=null;
+  try {
+    if(cardsChanged||feedback.length){
+      await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand}),context:ctx,startedAt,isCurrent:()=>id===animationId});
+    }else await dissolve(from,frame.pixels,id);
+  }finally {
+    if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
+  }
 }
+
 function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
 function restart() {
   stopStatCue();
-  animationId++; busy = false; audio.stop();
+  animationId++; busy = false; choiceSources={};lastChoiceSource=null; audio.stop();
   // A reversible restart retains the previous authored playthrough too.
   try { if(!testBackup)storage.setItem(`${SAVE_KEY}.before-restart`, serializeGame(state)); } catch {}
   state = createGame(); screen = 'main';actionPage=0;textPage=0;logPage=0; save(); $('settings').close(); redraw();
@@ -380,7 +395,7 @@ try {
     }
   });
   window.alignmentSnapshot = () => ({ state: structuredClone(state), screen: state.phase === 'intro' || state.message || currentWarning(state) ? 'scene' : screen,
-    scene: layout.scene, busy, renderer: 'original-hypercard-canvas', content: 'human-authored', width, height,
+    scene: layout.scene, busy, renderer: 'shared-granola-format', transitionMs:FORMAT_MS, content: 'human-authored', width, height,
     fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
