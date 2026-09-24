@@ -1,8 +1,8 @@
 {
-  "revision": "b9cd4e1b-e2f9-4e69-976d-0d0256bc1641",
-  "savedAt": "2026-09-23T23:24:30.065Z",
-  "slotStartedAt": "2026-09-23T23:24:30.065Z",
-  "snapshotId": "2026-09-23T23-24-30-065Z-59b970fe-ef04-4a8d-9e48-d3bd37d44f1f",
+  "revision": "66a7623d-aefc-4588-876e-a86c9eb272ec",
+  "savedAt": "2026-09-24T16:16:06.843Z",
+  "slotStartedAt": "2026-09-24T16:16:06.843Z",
+  "snapshotId": "2026-09-24T16-16-06-843Z-c019847a-d6c6-4ebe-89b3-c3779dc2f57f",
   "document": {
     "format": 1,
     "script": "roy-opening-2026-09-13",
@@ -39,7 +39,7 @@
       },
       {
         "id": "investigate",
-        "text": "Investigate? (Y/N)",
+        "text": "Investigate?",
         "bold": true,
         "yes": "woods",
         "no": "feeling"
@@ -76,7 +76,7 @@
       },
       {
         "id": "throw",
-        "text": "Throw it in the hole? (Y/N)",
+        "text": "Throw it in the hole?",
         "bold": true,
         "yes": "thanks",
         "no": "refusal"

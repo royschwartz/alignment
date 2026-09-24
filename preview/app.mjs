@@ -1,21 +1,21 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.8';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.9';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.8';
-import { cardChoices } from './author-schema.mjs?v=1.4.8';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.9';
+import { cardChoices } from './author-schema.mjs?v=1.4.9';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.8';
+import {CardAudio} from './card-audio.mjs?v=1.4.9';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
-import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.8';
-import {gameClock} from './story-clock.mjs?v=1.4.8';
+import {STAT_ICONS,headerStatX,headerStatLayout,signedChange} from './game-stats.mjs?v=1.4.9';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.9';
+import {gameClock} from './story-clock.mjs?v=1.4.9';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.8';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.8';
-import {drawEventLinks} from './event-links.mjs?v=1.4.8';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.9';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.9';
+import {drawEventLinks} from './event-links.mjs?v=1.4.9';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.8';
-import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.8';
+import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.9';
+import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.9';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 
@@ -118,16 +118,17 @@ function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (ico
 function header(c, out) {
   // Reserve each attribute's place even while it is hidden. Totals and direct
   // change badges stay in this same slot as other attributes are introduced.
-  const changes=editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
+  const changes=editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR),row=headerStatLayout(width);
   (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
     const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
-    if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,96);
-    text(c,STAT_LABELS[id].toUpperCase(),x,134,SMALL_FONT,{center:true});
+    if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,row.iconY);
+    text(c,STAT_LABELS[id].toUpperCase(),x,row.labelY,SMALL_FONT,{center:true});
     const number=String(id==='money'?Math.round(value*100)/100:Math.round(value*10)/10);
-    text(c,number,x,151,18,{center:true});
-    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:151,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
-    if(changes[id])text(c,signedChange(changes[id]),x,176,BODY_FONT,{center:true});
+    text(c,number,x,row.totalY,18,{center:true});
+    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:row.totalY,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
+    if(changes[id])text(c,signedChange(changes[id]),x,row.changeY,BODY_FONT,{center:true});
   });
+  c.fillStyle='#000';c.fillRect(row.dividerInset,row.dividerY,width-2*row.dividerInset,1);
   quiet(c, out, '· ·', 8, 29, 40, 24, 'settings', UI.settings);
   if(STORY_ENABLED)text(c,`portions: ${state.story.portions}`,16,196,SMALL_FONT);
 }
@@ -239,7 +240,7 @@ function handGeometry() {
 }
 // Roy, September 24: the hand appears only as brief card-selection feedback.
 
-const heartAnchor=()=>({x:headerStatX('rapture',width),y:187});
+const heartAnchor=()=>({x:headerStatX('rapture',width),y:headerStatLayout(width).changeY+11});
 function placement(card) {return {x:card.x,y:card.y,k:1};}
 function drawDealt(c,card,size,now) {
   const {w,h}=size,at=placement(card,size);
@@ -425,7 +426,7 @@ async function activate(action,selectionPoint=null) {
   const pendingStats=presentedStats(state,HUNGER_INDICATOR).map(([stat,value])=>[stat,previousStats[stat]??feedback.find(c=>c.stat===stat)?.from??value]);
   const pendingChanges=headerChangeAmounts(state,HUNGER_INDICATOR);
   $('narration').textContent=[frame.layout.text,...pendingStats.map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}${pendingChanges[id]?' ('+signedChange(pendingChanges[id])+')':''}`)].filter(Boolean).join('\n');
-  const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:162,viewportWidth:width}]));
+  const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:headerStatLayout(width).transferY,viewportWidth:width}]));
   const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
   heldStats=pendingStats;

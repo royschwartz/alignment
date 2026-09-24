@@ -1,5 +1,5 @@
 {
-  "version": "1.4.8",
+  "version": "1.4.9",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 23,
+  "versionCode": 24,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
@@ -46,5 +46,7 @@
     "y": 39,
     "sourceWidth": 68,
     "sourceHeight": 90
-  }
+  },
+  "eventChoiceLinkStyle": "symmetric-fork",
+  "attributeHeader": "raised-with-permanent-divider"
 }

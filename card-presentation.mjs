@@ -1,5 +1,6 @@
+import {headerStatLayout} from './game-stats.mjs?v=1.4.9';
 import {GAIN_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible} from './card-motion.mjs';
-import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.8';
+import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.9';
 
 export const FORMAT_MS=GAIN_MS;
 export const HEADER_BOTTOM=200;
@@ -7,7 +8,7 @@ export const MAC_FONT='Geneva, Helvetica, sans-serif';
 const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);return ((n^(n>>>16))>>>0)/4294967296;};
 const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),16777619),2166136261)>>>0;
 
-export {cardLayout} from './phone-screen.mjs?v=1.4.8';
+export {cardLayout} from './phone-screen.mjs?v=1.4.9';
 
 // Receipt amounts decide the glyphs. Net totals are deliberately independent:
 // +5 direct rapture still reads +5 when task time also drains 4.
@@ -71,7 +72,7 @@ export class CardTransition {
   }
   g.fillStyle='#000';
   for(const item of this.outgoing){
-   const {card,surface,points}=item,m=motion({...card,delta:1,target:{x:w/2,y:162}},elapsed);
+   const {card,surface,points}=item,m=motion({...card,delta:1,target:{x:w/2,y:headerStatLayout(w).transferY}},elapsed);
    if(card.action===this.selected||this.transfers.some(t=>t.card.action===card.action&&t.card.delta<0)){
     // Let the selected outline linger under the hand while the number travels.
     // This overlaps the same 860 ms sequence rather than delaying its launch.
