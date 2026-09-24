@@ -11,6 +11,18 @@ export function presentedStats(state,config) {
   const event=state.events.at(-1);
   return displayedStats(state,config).map(([stat,value])=>[stat,holdsStat(state,stat)?value-(event.delta[stat]||0):value]);
 }
+// The latest outcome's direct changes live beside the totals, not in the prose.
+// Keep them until another task is committed. Reading, resize and reload only
+// redraw this receipt; they never replay an effect or change an account.
+export function headerChangeAmounts(state,config) {
+  const event=state.events.at(-1);
+  if(state.phase==='intro'||state.message||!event)return {};
+  const visible=new Set(presentedStats(state,config).map(([stat])=>stat));
+  const amounts={};
+  for(const {stat,amount} of eventChanges(event))if(visible.has(stat))
+    amounts[stat]=Math.round(((amounts[stat]||0)+amount)*1e6)/1e6;
+  return Object.fromEntries(Object.entries(amounts).filter(([,amount])=>amount));
+}
 export function cueStrength(before,after) {
   const percent=Math.abs(after-before)/Math.max(1,Math.abs(before));
   const strength=Math.sqrt(Math.min(1,percent));

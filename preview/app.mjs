@@ -1,21 +1,21 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.4';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.5';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.4';
-import { cardChoices } from './author-schema.mjs?v=1.4.4';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.5';
+import { cardChoices } from './author-schema.mjs?v=1.4.5';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.4';
+import {CardAudio} from './card-audio.mjs?v=1.4.5';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
-import {gameClock} from './story-clock.mjs?v=1.4.4';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.5';
+import {gameClock} from './story-clock.mjs?v=1.4.5';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.4';
-import {drawEventLinks} from './event-links.mjs?v=1.4.4';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.5';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.5';
+import {drawEventLinks} from './event-links.mjs?v=1.4.5';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.4';
-import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.4';
+import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.5';
+import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.5';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 
@@ -86,7 +86,11 @@ function quiet(c, out, label, x, y, w, h, action, accessible = label) {
   control(out, accessible, x, y, w, h, action);
 }
 function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false } = {}) {
-  if(card){c.fillStyle='#000';c.fillRect(x+1,y+1,w,h);}
+  if(card){
+    drawChoiceCard(c,{x,y,w,h,label,textLayout,available,id:action,fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+    control(out,label,x,y,w,h,action,available);
+    out.cards?.push({action,x,y,w,h});return;
+  }
   box(c, x, y, w, h);
   if (primary) c.strokeRect(x + 3.5, y + 3.5, w - 7, h - 7);
   font(c,BODY_FONT,!card);const measure=value=>c.measureText(value).width;
@@ -114,17 +118,18 @@ function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (ico
 function header(c, out) {
   // Reserve each attribute's place even while it is hidden. Totals and direct
   // change badges stay in this same slot as other attributes are introduced.
+  const changes=heldStats||editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
   (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
     const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
-    if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,54);
-    text(c,STAT_LABELS[id].toUpperCase(),x,97,SMALL_FONT,{center:true});
+    if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,96);
+    text(c,STAT_LABELS[id].toUpperCase(),x,134,SMALL_FONT,{center:true});
     const number=String(id==='money'?Math.round(value*100)/100:Math.round(value*10)/10);
-    text(c,number,x,125,18,{center:true});
-    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:125,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
-    if(cue?.displayAmount&&!heldStats)text(c,signedChange(cue.displayAmount),x,150,SMALL_FONT,{center:true});
+    text(c,number,x,151,18,{center:true});
+    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:151,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
+    if(changes[id])text(c,signedChange(changes[id]),x,176,BODY_FONT,{center:true});
   });
   quiet(c, out, '· ·', 8, 29, 40, 24, 'settings', UI.settings);
-  if(STORY_ENABLED)text(c,`portions: ${state.story.portions}`,16,170,SMALL_FONT);
+  if(STORY_ENABLED)text(c,`portions: ${state.story.portions}`,16,196,SMALL_FONT);
 }
 const LOG_MARGIN=12,LOG_PADDING=10;
 const dateBar=()=>Object.values(gameClock(UI,state.elapsedMinutes)).filter(Boolean).join(' · ');
@@ -133,16 +138,13 @@ const logDateHeight=rows=>rows.length?rows.length*(SMALL_FONT+4)+4:0;
 function logRows(c,entries,size) {
   font(c,size);const measure=value=>c.measureText(value).width;
   const maxWidth=width-2*(LOG_MARGIN+LOG_PADDING);
-  return entries.flatMap(({id,changes=[]},entry)=>{
+  return entries.flatMap(({id},entry)=>{
     const rows=LOGS[id]?wrapText(LOGS[id],maxWidth,measure):[];
-    const badges=changeRows(changes,maxWidth,measure).map(row=>({...row,text:changesText(row.tokens,STAT_LABELS),id,entry,height:Math.max(size,LOG_ICON_SIZE)+8}));
-    for(const row of changeRows(entries[entry].withdrawn||[],maxWidth-LOG_ICON_SIZE-LOG_ICON_GAP,measure))
-      badges.push({...row,chain:true,width:row.width+LOG_ICON_SIZE+LOG_ICON_GAP,text:changesText(row.tokens,STAT_LABELS),id,entry,height:Math.max(size,LOG_ICON_SIZE)+8});
-    if(!rows.length&&!badges.length)return [];
-    return [...rows.map(row=>({...row,id,entry,autoCenter:rows.length===1,height:size+10})),...badges,{text:'',line:0,entry:null,height:12}];
+    if(!rows.length)return [];
+    return [...rows.map(row=>({...row,id,entry,autoCenter:rows.length===1,height:size+10})),{text:'',line:0,entry:null,height:12}];
   });
 }
-function logSheet(c,rows,{y=187,h=140,size=BODY_FONT,bottomInset=12}={}) {
+function logSheet(c,rows,{y=205,h=140,size=BODY_FONT,bottomInset=12}={}) {
   const dateRows=logDateRows(c),dateHeight=logDateHeight(dateRows);
   const x=LOG_MARGIN,w=width-2*LOG_MARGIN,leading=size+10,top=y+12+dateHeight;
   c.fillStyle='#fff';c.fillRect(x,y,w,h);
@@ -155,18 +157,14 @@ function logSheet(c,rows,{y=187,h=140,size=BODY_FONT,bottomInset=12}={}) {
       top:top+offsets[first],layout:TEXT_LAYOUTS.logs?.[group[0].id]||{},autoCenter:group[0].autoCenter});
     positioned.forEach(row=>text(c,row.text,row.x,row.y,size));
   }
-  rows.forEach((row,index)=>{if(!row.tokens)return;let left=x+(w-row.width)/2;const y=top+offsets[index];
-    if(row.chain){drawChainGlyph(c,left,y,LOG_ICON_SIZE);left+=LOG_ICON_SIZE+LOG_ICON_GAP;}
-    row.tokens.forEach(token=>{text(c,token.label,left+token.x,y+(LOG_ICON_SIZE-size)/2,size);if(token.icon)icon(c,token.icon,left+token.x+measure(token.label)+LOG_ICON_GAP,y,LOG_ICON_SIZE);});
-  });
   return y+h+3;
 }
 function notebook(c,out,entries=logEntries(state)) {
   header(c,out);
   const lines=logRows(c,entries,STORY_FONT);
-  const h=height-290,paginated=logPages(lines,h-72-logDateHeight(logDateRows(c))),pages=paginated.length;
+  const h=height-308,paginated=logPages(lines,h-72-logDateHeight(logDateRows(c))),pages=paginated.length;
   logPage=Math.min(logPage,pages-1);const rows=paginated[logPage];
-  logSheet(c,rows,{y:187,h,size:STORY_FONT,bottomInset:pages>1?60:12});
+  logSheet(c,rows,{y:205,h,size:STORY_FONT,bottomInset:pages>1?60:12});
   if(pages>1){quiet(c,out,'←',34,height-151,48,38,'log-prev');quiet(c,out,`${logPage+1} / ${pages} →`,width-148,height-151,114,38,'log-next');}
   out.logPages=pages;out.text=[dateBar(),rows.map(row=>row.text).join('\n')].filter(Boolean).join('\n');
   button(c,out,UI.return,width-166,height-78,144,56,'close-log');
@@ -182,11 +180,11 @@ function scene(c, out, node, intro = true) {
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
   const bottom = node.prompt?choiceGrid(4,height-90).top-24:choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
-  const capacity = Math.max(1,Math.floor((bottom-178)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
+  const capacity = Math.max(1,Math.floor((bottom-206)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
   const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
-  const top = Math.max(178, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
+  const top = Math.max(206, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
   const textLayout=TEXT_LAYOUTS[intro?'intro':'messages']?.[node.id]||{};
-  const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:178,w:width-2*margin,h:bottom-(178)},leading,fontSize:size,top,
+  const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:206,w:width-2*margin,h:bottom-(178)},leading,fontSize:size,top,
     layout:textLayout,autoCenter:rows.length===1,scaleWidth:width,scaleHeight:height});
   positioned.forEach(row=>text(c,row.text,row.x,row.y,size,options));
   out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
@@ -241,7 +239,7 @@ function handGeometry() {
 }
 // Roy, September 24: the hand appears only as brief card-selection feedback.
 
-const heartAnchor=()=>({x:headerStatX('rapture',width),y:143});
+const heartAnchor=()=>({x:headerStatX('rapture',width),y:187});
 function placement(card) {return {x:card.x,y:card.y,k:1};}
 function drawDealt(c,card,size,now) {
   const {w,h}=size,at=placement(card,size);
@@ -273,10 +271,9 @@ function main(c, out) {
     const at=placement(card,size);(card.needLook==='chain'?drawChain:drawThread)(c,heart,{x:at.x,y:at.y,w:size.w*at.k,routeX:card.x<width/2?card.x-10:card.x+size.w+10},now,sceneSince,prefs.reduceMotion);
   }
   const entry=statusEntry(state);
-  const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS),entry.withdrawn?.length?`${changesText(entry.withdrawn,STAT_LABELS)} (withdrawn)`:''].filter(Boolean).join('\n');
+  const log=LOGS[entry.id]||'';
   const allRows=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null),prose=allRows.filter(row=>!row.tokens),rows=prose.slice(0,3);
   if(prose.length>3)rows[2]={...rows[2],text:rows[2].text+'…'};
-  rows.push(...allRows.filter(row=>row.tokens));
   const encounter=STORY_ENABLED&&state.story.encounter;
   if(encounter){
     const value=MESSAGES['hole-standing'],margin=proseMargin(width);
@@ -308,7 +305,7 @@ function draw() {
   const out = { buttons: [], cards:[], text: '', scene: null };
   // Plain classic window chrome, shared with the approved granola study.
   c.strokeStyle='#000';c.beginPath();c.moveTo(1,43.5);c.lineTo(width-1,43.5);c.stroke();
-  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,Math.max(0,width/2-180),1);}
+  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,Math.max(0,width/2-85),1);}
   text(c,'A L I G N M E N T',width/2,7,11,{bold:true,center:true});
   if (editorPreview) {
     const {type,id}=editorPreview;
@@ -332,7 +329,7 @@ function draw() {
   return { pixels: tintHungerNumber(raster,width,height,out.hungerNumber), layout: out };
 }
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
-function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(3,rect.top+3)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
+function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(50,rect.top+50)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
 function installControls() {
   $('story-clock').hidden=state.phase!=='playing';const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
   // A need is eligible only once its marked, interactive card has been painted.
@@ -349,7 +346,7 @@ function installControls() {
     Object.assign(el.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
     el.onclick = event => activate(b.action,event.detail?{x:(event.clientX-canvas.getBoundingClientRect().left)*width/canvas.getBoundingClientRect().width,y:(event.clientY-canvas.getBoundingClientRect().top)*height/canvas.getBoundingClientRect().height}:null); $('controls').append(el);
   }
-  $('narration').textContent = [layout.text, ...presentedStats(state,HUNGER_INDICATOR).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
+  $('narration').textContent = [layout.text, ...presentedStats(state,HUNGER_INDICATOR).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}${!editorPreview&&headerChangeAmounts(state,HUNGER_INDICATOR)[id]?' ('+signedChange(headerChangeAmounts(state,HUNGER_INDICATOR)[id])+')':''}`)].filter(Boolean).join('\n');
 }
 function redraw() {
   $('settings-title').textContent=UI.settings;$('restart').textContent=UI.restart;
@@ -424,7 +421,9 @@ async function activate(action,selectionPoint=null) {
     choiceSources=Object.fromEntries(previousLayout.cards.map(c=>[c.action,{...c}]));lastChoiceSource=choiceSources[selected];
   }
   const frame=draw(),cardsChanged=previousLayout.cards.length||frame.layout.cards.length;
-  const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:136,viewportWidth:width}]));
+  // Announce the selected description now; totals arrive at the end of the deal.
+  $('narration').textContent=[frame.layout.text,...Object.entries(previousStats).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
+  const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:162,viewportWidth:width}]));
   const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
   heldStats=Object.entries(previousStats);

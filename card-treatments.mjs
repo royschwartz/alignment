@@ -293,8 +293,12 @@ export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,availab
   if(need==='lifted'){const o=Math.round(1+2*b);fx=x-o;fy=y-o;c.fillStyle='#000';c.fillRect(x+o,y+o,w,h);}
   if(need==='ring')ring(c,x,y,w,h,b);
   if(need==='pulled')pulled(c,x,y,w,h,t,since,reduceMotion);
+  // Roy's heavier frame is inset, so every card keeps the same outer size.
+  const rim=Math.max(6,Math.round(w*.085));
+  labelInset=Math.max(labelInset,rim+6);
   // A face-down card shows its back, but its need or pain marks stay visible.
-  if(faceDown)drawCardBack(c,fx,fy,w,h);else box(c,fx,fy,w,h);
+  if(faceDown)drawCardBack(c,fx,fy,w,h);
+  else {c.fillStyle='#000';c.fillRect(fx,fy,w,h);c.fillStyle='#fff';c.fillRect(fx+rim,fy+rim,w-2*rim,h-2*rim);}
   if(pain==='pressed')pressed(c,fx,fy,w,h,level);
   if(pain==='thorns-1997')thorns1997(c,fx,fy,w,h,level);
   if(pain==='bramble')bramble(c,fx,fy,w,h,id,level);
@@ -307,7 +311,7 @@ export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,availab
   const size=13,leading=size+6;
   c.font=`${bold?'bold ':''}${size}px ${fontFamily}`;c.textBaseline='top';c.textAlign='left';
   const measure=value=>c.measureText(value).width,rows=faceDown?[]:wrapText(label,w-2*labelInset,measure);
-  const placed=placeText(rows,{measure,bounds:{x:fx+labelInset,y:fy+10,w:w-2*labelInset,h:h-20},leading,fontSize:size,
+  const placed=placeText(rows,{measure,bounds:{x:fx+labelInset,y:fy+rim+6,w:w-2*labelInset,h:h-2*(rim+6)},leading,fontSize:size,
     top:fy+(h-leading*rows.length)/2+3,layout:textLayout||{align:'center'},autoCenter:rows.length===1,scaleWidth:w,scaleHeight:h});
   if(pain==='barbed-across'){c.strokeStyle='#fff';c.lineWidth=4;c.lineJoin='round';placed.forEach(row=>c.strokeText(row.text,Math.round(row.x),Math.round(row.y)));}
   c.fillStyle='#000';placed.forEach(row=>c.fillText(row.text,Math.round(row.x),Math.round(row.y)));

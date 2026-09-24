@@ -1,13 +1,13 @@
 import {GAIN_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible} from './card-motion.mjs';
-import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.4';
+import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.5';
 
 export const FORMAT_MS=GAIN_MS;
-export const HEADER_BOTTOM=172;
+export const HEADER_BOTTOM=200;
 export const MAC_FONT='Geneva, Helvetica, sans-serif';
 const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);return ((n^(n>>>16))>>>0)/4294967296;};
 const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),16777619),2166136261)>>>0;
 
-export {cardLayout} from './phone-screen.mjs?v=1.4.4';
+export {cardLayout} from './phone-screen.mjs?v=1.4.5';
 
 // Receipt amounts decide the glyphs. Net totals are deliberately independent:
 // +5 direct rapture still reads +5 when task time also drains 4.
@@ -51,26 +51,27 @@ export class CardTransition {
   };
   this.outgoing=outgoing.map(c=>capture(this.from,c));this.incoming=incoming.map(c=>capture(this.to,c));
   this.transfers=transfers.map(card=>({card,glyph:glyph(amountText(card.delta))}));
-  const old=surface(width,height),g=old.getContext('2d');g.drawImage(this.from,0,0);g.fillStyle='#fff';
-  for(const c of outgoing)g.fillRect(c.x-2,c.y-5,c.w+4,c.h+9);
-  g.fillRect(0,0,width,HEADER_BOTTOM);this.oldInk=ink(old);
+  // Present the new writing at selection, before dealing its next cards.
+  this.description=surface(width,height);const g=this.description.getContext('2d');
+  g.drawImage(this.to,0,0);g.fillStyle='#fff';
+  for(const c of incoming)g.fillRect(c.x-2,c.y-5,c.w+4,c.h+9);
+  g.fillRect(0,0,width,HEADER_BOTTOM);
  }
  frame(elapsed){
   const g=this.g,{width:w,height:h}=this;
   g.fillStyle='#fff';g.fillRect(0,0,w,h);
   if(elapsed>=this.duration){g.drawImage(this.to,0,0);return this.canvas;}
-  // Header totals hold until the very same frame as card and number arrival.
+  g.drawImage(this.description,0,0);
+  // The writing is already visible; totals wait for card and number arrival.
   g.drawImage(this.held,0,0,w,HEADER_BOTTOM,0,0,w,HEADER_BOTTOM);
   g.strokeStyle='#000';g.strokeRect(.5,.5,w-1,h-1);
   if(this.reduced){
-   g.drawImage(this.from,0,0);
    drawSelectionHand(g,this.handImage,this.selectedCard,w,h,elapsed,this.selectionPoint);
    this.overlay?.(g,elapsed/this.duration);return this.canvas;
   }
-  g.fillStyle='#000';const erase=smooth(segment(elapsed,40,145));
-  for(const p of this.oldInk)if(p.rank>=erase)g.fillRect(p.x,p.y,1,1);
+  g.fillStyle='#000';
   for(const item of this.outgoing){
-   const {card,surface,points}=item,m=motion({...card,delta:1,target:{x:w/2,y:136}},elapsed);
+   const {card,surface,points}=item,m=motion({...card,delta:1,target:{x:w/2,y:162}},elapsed);
    if(card.action===this.selected||this.transfers.some(t=>t.card.action===card.action&&t.card.delta<0)){
     // Let the selected outline linger under the hand while the number travels.
     // This overlaps the same 860 ms sequence rather than delaying its launch.
