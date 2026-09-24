@@ -6,7 +6,7 @@ import {STAT_KEYS,LOG_STAT_KEYS} from './game-stats.mjs';
 import {resolveOutcome,seedFrom} from './action-outcomes.mjs';
 // Display lab fork: adds the deal, checking, need withdrawal and the one-time
 // yes/no pain warning. Settings come from the lab palette, not the manuscript.
-import {lab} from './lab.mjs?v=1.4.6';
+import {lab} from './lab.mjs?v=1.4.7';
 export {lab};
 import {STORY_ENABLED,storySettings,storyTotals,storyVisible,storyPlayable,resolveStoryAction,storyReceipt,validStoryReceipt} from './first-nights.mjs';
 export { TIME_RATES, TASK_MINUTES, advanceTaskTime };

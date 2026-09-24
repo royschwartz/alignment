@@ -279,6 +279,48 @@ export function drawThread(c,anchor,{x,y,w},t,since,reduce) {
   }
 }
 
+// Roy selected study 07, Worn ink. Keep the grain fixed to the card so it
+// travels with the artwork instead of shimmering during the deal.
+const inkNoise=(x,y,seed=0)=>{
+  let n=Math.imul(x+seed*73,374761393)+Math.imul(y+19,668265263);
+  n=Math.imul(n^(n>>>13),1274126177);
+  return((n^(n>>>16))>>>0)/4294967296;
+};
+export function wornInkPixels(w,h,rim){
+  const pixels=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const studyY=y+6,dx=Math.min(x,w-1-x),dy=Math.min(y,h-1-y);
+    const edge=Math.min(dx,dy),frame=edge<rim,corner=dx<18&&dy<18,r=inkNoise(x,studyY,29);
+    let black=frame;
+    if(frame&&edge>=3&&!corner){
+      const erosion=inkNoise(Math.floor(x/3),Math.floor(studyY/3),4)*2.8+inkNoise(x,studyY,8)*1.8;
+      black=edge<rim-erosion&&(r>.065||edge<5);
+    }else if(!frame){
+      const inside=edge-rim;
+      black=inside<7&&r<.07*(1-inside/7)&&inkNoise(Math.floor(x/4),Math.floor(studyY/4),9)>.4;
+    }
+    if(black)pixels[y*w+x]=1;
+  }
+  return pixels;
+}
+const inkFaces=new Map();
+function drawWornInkFace(c,x,y,w,h,rim){
+  const width=Math.round(w),height=Math.round(h),key=`${width}:${height}:${rim}`;
+  let face=inkFaces.get(key);
+  if(!face){
+    face=document.createElement('canvas');face.width=width;face.height=height;
+    const paint=face.getContext('2d'),data=paint.createImageData(width,height),pixels=wornInkPixels(width,height,rim);
+    for(let i=0;i<pixels.length;i++){
+      const value=pixels[i]?0:255,offset=i*4;
+      data.data[offset]=data.data[offset+1]=data.data[offset+2]=value;data.data[offset+3]=255;
+    }
+    paint.putImageData(data,0,0);
+    if(inkFaces.size>=16)inkFaces.delete(inkFaces.keys().next().value);
+    inkFaces.set(key,face);
+  }
+  c.save();c.imageSmoothingEnabled=false;c.drawImage(face,x,y,w,h);c.restore();
+}
+
 export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,available=true,pain='none',need='none',level=2,faceDown=false,id='',t=0,since=0,reduceMotion=false,fontFamily='monospace',bold=true}) {
   // The thin stacked top edges in Roy's reference stay within the card's
   // footprint, so single-card exports and animated captures include them too.
@@ -298,7 +340,7 @@ export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,availab
   labelInset=Math.max(labelInset,rim+6);
   // A face-down card shows its back, but its need or pain marks stay visible.
   if(faceDown)drawCardBack(c,fx,fy,w,h);
-  else {c.fillStyle='#000';c.fillRect(fx,fy,w,h);c.fillStyle='#fff';c.fillRect(fx+rim,fy+rim,w-2*rim,h-2*rim);}
+  else drawWornInkFace(c,fx,fy,w,h,rim);
   if(pain==='pressed')pressed(c,fx,fy,w,h,level);
   if(pain==='thorns-1997')thorns1997(c,fx,fy,w,h,level);
   if(pain==='bramble')bramble(c,fx,fy,w,h,id,level);
