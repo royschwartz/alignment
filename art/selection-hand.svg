@@ -1,0 +1,8 @@
+<!-- Original project artwork, drawn for the selection flash; no external source. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="68" height="90" viewBox="0 0 68 90">
+  <path fill="white" stroke="black" stroke-width="2" stroke-linejoin="round" d="M24 88V75C17 70 13 63 10 53L4 36Q3 31 7 30Q11 29 14 35L20 46V17Q20 11 25 11Q30 11 30 17V8Q30 2 35 2Q40 2 40 8V15Q40 9 45 9Q50 9 50 15V24Q50 18 55 18Q60 18 60 24V52Q60 66 52 75V88Z"/>
+  <g fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round">
+    <path d="M30 17V41M40 15V40M50 24V43M20 46L25 53M25 59Q37 63 48 59M28 73Q38 77 49 73"/>
+    <path d="M22 28H27M32 24H37M42 28H47M52 34H57"/>
+  </g>
+</svg>

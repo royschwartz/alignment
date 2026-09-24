@@ -1,0 +1,15 @@
+Alignment — Eerie CD-ROM sound bank
+Prepared September 22, 2026
+
+All source recordings below are CC0 1.0.
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Kenney: https://kenney.nl/assets/interface-sounds
+Kenney: https://kenney.nl/assets/digital-audio
+Kenney: https://kenney.nl/assets/sci-fi-sounds
+rubberduck: https://opengameart.org/content/100-cc0-sfx
+qubodup: https://opengameart.org/content/electronic-device-loop
+
+Edited excerpts: pitch, filtering, short echoes, fades, mono conversion and level matching.
+Individual source files, hashes and edits are recorded in provenance.json.
+Original Orda bank remains in the parent directory.

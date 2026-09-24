@@ -1,0 +1,176 @@
+{
+  "source": "Orda Sound Designer audio catalog",
+  "catalog": "/Users/royschwartz/Orda Again/Assets/Sound/Scripts/SoundLibrary.cs",
+  "sounds": [
+    {
+      "cue": "loss",
+      "source": "/Users/royschwartz/Orda Again/Assets/Sound/Resources/Audio/Lifeloss.wav",
+      "sourceSha256": "628f6fa8bc33278f9b5a993894a90a7b5c51899b857dc903929e99ebb15979ab",
+      "file": "loss.wav",
+      "sha256": "fbe5fa46b048bb98458f9d1043b6a9c952278c58104e7ed27c5bb6d6cc30f9d4",
+      "startSeconds": 0.033605442176870746,
+      "durationSeconds": 0.6190702947845805,
+      "processing": "Mono excerpt, 8ms attack/70ms release, peak normalized to 0.7; runtime duration and volume scale with percentage change."
+    },
+    {
+      "cue": "gain",
+      "source": "/Users/royschwartz/Orda Again/Assets/Sound/Resources/Audio/PlayerTurn.wav",
+      "sourceSha256": "bab2025e77a4e015f235bb192feaeda7340969126d70c53b76be0f59923cbb1a",
+      "file": "gain.wav",
+      "sha256": "2abd7f88049fdb4f95565456bc90f8925814bd3cb983314da44d914238e64efa",
+      "startSeconds": 0.3454875283446712,
+      "durationSeconds": 0.82,
+      "processing": "Mono excerpt, 8ms attack/70ms release, peak normalized to 0.7; runtime duration and volume scale with percentage change."
+    },
+    {
+      "cue": "reveal",
+      "source": "/Users/royschwartz/Orda Again/Assets/Sound/Resources/Audio/UnitPlacement.wav",
+      "sourceSha256": "6ba92d4a6b4491fb95ce8b7b4ae0834accb0cd6d4445ed4bef35bf5cc6eb1127",
+      "file": "reveal.wav",
+      "sha256": "65a504cda83400f1b7c3bc2cd78c06f566ca0ec39e13d4e1a92fe847ef4d9ede",
+      "startSeconds": 0.000020833333333333333,
+      "durationSeconds": 0.55,
+      "processing": "Mono excerpt, 8ms attack/70ms release, peak normalized to 0.7; runtime duration and volume scale with percentage change."
+    },
+    {
+      "cue": "money-gain",
+      "file": "money-gain.wav",
+      "sha256": "05403090bfbb968bc7feadf81c07d9d3924fcad37549394ed2ef7d16bd47dc1c",
+      "durationSeconds": 0.6,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab fmBell; three coin contacts with inharmonic 1/2.76/5.4 partials and short metallic decay; ascending for gain, descending for loss."
+    },
+    {
+      "cue": "rapture-gain",
+      "file": "rapture-gain.wav",
+      "sha256": "a7ab76ac9d011a28c0ad0649c44cef15285a906b8d676ae3ffab9f36f1a6f59c",
+      "durationSeconds": 1.05,
+      "source": "/Users/royschwartz/Orda Again/Tools/VoiceLabApp/Engine/FormantSynthesizer.swift",
+      "sourceSha256": "508cf350fc18e15cc82878ae84cbb3b8d3fd82617ffcab6f492f823daf794c98",
+      "synthesis": "Orda Voice Engine Klatt formant H + AA; airy C-major choir at 261.63/329.63/392/523.25 Hz. Orda Sound Lab chorus/reverb. User-specified nonverbal HAA only."
+    },
+    {
+      "cue": "money-loss",
+      "file": "money-loss.wav",
+      "sha256": "7a92720593abf5a532d3863158ef7e76973b18d3907f0b4025b3bba29e103710",
+      "durationSeconds": 0.62,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab fmBell/impact/noise: irregular low coin spill, falling metallic ring and padded till stop; no gain arpeggio or bright upward cadence."
+    },
+    {
+      "cue": "rapture-loss",
+      "file": "rapture-loss.wav",
+      "sha256": "ac0dc2805aa5b1d842829afa5fd3b76004d9253d6deb32bce292fb5920f43c30",
+      "durationSeconds": 0.78,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Voice Engine: newly voiced low minor choir falling a fifth, AA formants closing, unstable voicing, inward breath and a short reversed-vowel tail. Distinct from the approved bright HAA gain.",
+      "voiceSource": "/Users/royschwartz/Orda Again/Tools/VoiceLabApp/Engine/FormantSynthesizer.swift",
+      "voiceSourceSha256": "508cf350fc18e15cc82878ae84cbb3b8d3fd82617ffcab6f492f823daf794c98",
+      "voiceRecipe": "tools/render-attribute-fall.swift",
+      "voiceRecipeSha256": "469156279f9d0cb647efba090802c4b798570592e58294a43149605b07904e8a"
+    },
+    {
+      "cue": "money-reveal",
+      "file": "money-reveal.wav",
+      "sha256": "26465ac3ea8ea256c406650b09ceb2afb2aa910a5826c8f4c3e5bdd1f09b698e",
+      "durationSeconds": 0.48,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab fmBell: one exposed coin ping and a short spinning shimmer; no transaction sequence."
+    },
+    {
+      "cue": "rapture-reveal",
+      "file": "rapture-reveal.wav",
+      "sha256": "4b977ea83842ca2f567d7c7b2f0072339e6fed571aac9bd995d7c05becea060e",
+      "durationSeconds": 0.56,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab: two soft resonant heartbeat pulses opening into one airy harmonic; no HAA reward chord."
+    },
+    {
+      "cue": "hunger-reveal",
+      "file": "hunger-reveal.wav",
+      "sha256": "ffaaa0d664e34fdaade95b8e405c670ad6fc7d46899a466f619cd4c6cd7c2952",
+      "durationSeconds": 0.5,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab murkBed: a hollow stomach-like gurgle, low resonant wobble and soft internal knock."
+    },
+    {
+      "cue": "hunger-gain",
+      "file": "hunger-gain.wav",
+      "sha256": "b3778ae6074c4262948959b9a935a891342012f66683b91e695cf33a6a52d534",
+      "durationSeconds": 0.62,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab undertowWave/noise: rough contracting growl, rising pressure and accelerating organic flutter."
+    },
+    {
+      "cue": "hunger-loss",
+      "file": "hunger-loss.wav",
+      "sha256": "5131594012c18157c82c2e0723020620a8159145da05418569d60004461be90f",
+      "durationSeconds": 0.57,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab filtered breath: smooth settling belly tone and soft outward air; no rough accelerating growl."
+    },
+    {
+      "cue": "disquiet-reveal",
+      "file": "disquiet-reveal.wav",
+      "sha256": "95bfadb5552c5973b63ac70a5530fa716ac522d06885dac9be791e0a8e356d2b",
+      "durationSeconds": 0.49,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab bandpassed noise: short dry friction with two close unstable tones, like a small surface drawn taut."
+    },
+    {
+      "cue": "disquiet-gain",
+      "file": "disquiet-gain.wav",
+      "sha256": "f243a7f7701ff295b2b2335632aacd4a4fb9295beb95f95820781f5d8dc2fa30",
+      "durationSeconds": 0.63,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab filtered noise: tightening tremolo, rising close dissonances and dry buzzing pressure."
+    },
+    {
+      "cue": "disquiet-loss",
+      "file": "disquiet-loss.wav",
+      "sha256": "0616bab69f57d8b20cd9ed785fa58d350c1c1735b058b791e786847ac8ca0e84",
+      "durationSeconds": 0.59,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab: friction unravels into an unpitched soft exhale with a downward settling thread; no tremolo buildup."
+    },
+    {
+      "cue": "choice-reveal",
+      "file": "choice-reveal.wav",
+      "sha256": "70cdbf1ba6cc6172e7c12e474592d5615a370c39c7764d71e1e453fc68af3803",
+      "durationSeconds": 0.44,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab impact: a dry wooden click followed by one hollow open peg tone."
+    },
+    {
+      "cue": "choice-gain",
+      "file": "choice-gain.wav",
+      "sha256": "401fc6daeb82ea61dac5df5b08d4838ea4b0cbf302fcbf70d19b1f1923e6c78d",
+      "durationSeconds": 0.58,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab impact: three open wooden notes stepping upward, with clear space and hollow resonance."
+    },
+    {
+      "cue": "choice-loss",
+      "file": "choice-loss.wav",
+      "sha256": "edabc923cac1dd611b9fe0f6acc90d71f76a5b4f0f9b0f92a9393bfee4b750a0",
+      "durationSeconds": 0.51,
+      "source": "/Users/royschwartz/Orda Again/Tools/SoundLabApp/Resources/app.js",
+      "sourceSha256": "e6d54a596d44c712fde181319c04b4d4f9a3ee6fa738e76675273edef15ca400",
+      "synthesis": "Orda Sound Lab impact: two close dry latch knocks, the second heavier and choked; no rising notes."
+    }
+  ],
+  "revision": "Distinct attribute reveals and contrasting losses, September 15 2026"
+}

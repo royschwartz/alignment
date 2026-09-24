@@ -1,0 +1,452 @@
+{
+  "revision": "b9cd4e1b-e2f9-4e69-976d-0d0256bc1641",
+  "savedAt": "2026-09-23T23:24:30.065Z",
+  "slotStartedAt": "2026-09-23T23:24:30.065Z",
+  "snapshotId": "2026-09-23T23-24-30-065Z-59b970fe-ef04-4a8d-9e48-d3bd37d44f1f",
+  "document": {
+    "format": 1,
+    "script": "roy-opening-2026-09-13",
+    "intro": [
+      {
+        "id": "wake",
+        "text": "you woke up too early"
+      },
+      {
+        "id": "outside",
+        "text": "stepping outside you were immersed in the UNQUIET"
+      },
+      {
+        "id": "feeling",
+        "text": "can you describe this feeling?"
+      },
+      {
+        "id": "emptiness",
+        "text": "can emptiness be felt?"
+      },
+      {
+        "id": "yes",
+        "text": "yes it can"
+      },
+      {
+        "id": "heart",
+        "text": "my heart is yelling",
+        "italic": true
+      },
+      {
+        "id": "sound",
+        "text": "From somewhere in the woods came a small sound.",
+        "bold": true
+      },
+      {
+        "id": "investigate",
+        "text": "Investigate? (Y/N)",
+        "bold": true,
+        "yes": "woods",
+        "no": "feeling"
+      },
+      {
+        "id": "woods",
+        "text": "you wander into the woods. the sun is rising. there is no path"
+      },
+      {
+        "id": "hold",
+        "text": "i want to hold something so tightly it hurts",
+        "italic": true
+      },
+      {
+        "id": "hole",
+        "text": "you arrive at a hole that wasn’t there before"
+      },
+      {
+        "id": "something",
+        "text": "you have a feeling there is something in the hole"
+      },
+      {
+        "id": "hungry",
+        "text": "i am hungry",
+        "italic": true
+      },
+      {
+        "id": "thoughts",
+        "text": "are these your own thoughts?"
+      },
+      {
+        "id": "bar",
+        "text": "you have a half-eaten granola bar"
+      },
+      {
+        "id": "throw",
+        "text": "Throw it in the hole? (Y/N)",
+        "bold": true,
+        "yes": "thanks",
+        "no": "refusal"
+      },
+      {
+        "id": "refusal",
+        "text": "I am hungry",
+        "italic": true,
+        "next": "throw"
+      },
+      {
+        "id": "thanks",
+        "text": "thank you",
+        "italic": true
+      },
+      {
+        "id": "feeding",
+        "text": "",
+        "kind": "feeding",
+        "sound": "SOUND OF FEEDING—LIKE GARBAGE DISPOSAL",
+        "next": "more"
+      },
+      {
+        "id": "more",
+        "text": "can I have some more?",
+        "italic": true
+      },
+      {
+        "id": "title",
+        "text": "… A L I G N M E N T …",
+        "kind": "title",
+        "bold": true
+      },
+      {
+        "id": "ache",
+        "text": "on the way back you feel an ache"
+      },
+      {
+        "id": "sick",
+        "text": "you are sick"
+      },
+      {
+        "id": "walking",
+        "text": "you walk but you might not be walking"
+      },
+      {
+        "id": "stiffens",
+        "text": "somewhere your body stiffens"
+      },
+      {
+        "id": "shifts",
+        "text": "           shifts"
+      },
+      {
+        "id": "better",
+        "text": "you start to feel better"
+      },
+      {
+        "id": "home",
+        "text": "you are coming home",
+        "begin": true,
+        "next": "collegetown-setting"
+      },
+      {
+        "id": "letters",
+        "text": "the unopened letters, the bruised wallpaper "
+      },
+      {
+        "id": "wall",
+        "text": "a neutral smell you can't describe"
+      },
+      {
+        "id": "first-time",
+        "text": "you are experiencing these things like for the first time"
+      },
+      {
+        "id": "bed",
+        "text": "you sit down with your coat still on"
+      },
+      {
+        "id": "more-at-home",
+        "text": "can I have some more?",
+        "italic": true
+      },
+      {
+        "id": "insects",
+        "text": "",
+        "next": "collegetown-setting"
+      },
+      {
+        "id": "collegetown-setting",
+        "text": "Collegetown USA\n1997",
+        "kind": "title",
+        "next": "@begin"
+      }
+    ],
+    "actions": [
+      {
+        "id": "observe",
+        "label": "observe",
+        "message": "observe-familiar",
+        "log": "observe",
+        "minutes": 15,
+        "effects": {},
+        "reveal": [
+          "disquiet"
+        ],
+        "hideWhenDone": true,
+        "drainRapture": false,
+        "revealAtEnd": true,
+        "revealOnMessage": "observe-dissonance"
+      },
+      {
+        "id": "groceries",
+        "label": "buy groceries",
+        "log": "groceries",
+        "minutes": 60,
+        "effects": {
+          "money": -50
+        },
+        "reveal": [
+          "money"
+        ],
+        "hideWhenDone": true,
+        "drainRapture": false
+      },
+      {
+        "id": "dinner",
+        "label": "make a frozen dinner",
+        "message": "dinner",
+        "minutes": 15,
+        "effects": {},
+        "reveal": [],
+        "hideWhenDone": true,
+        "log": "log-6696e94e-218",
+        "drainRapture": false,
+        "unavailableAfter": "dishes"
+      },
+      {
+        "id": "tv",
+        "label": "watch tv",
+        "minutes": 30,
+        "effects": {
+          "rapture": 2
+        },
+        "reveal": [
+          "rapture"
+        ],
+        "hideWhenDone": false,
+        "drainRapture": false,
+        "statOnlyLog": false,
+        "log": "tv",
+        "message": "tv",
+        "repeatable": true,
+        "outcomes": [
+          {
+            "id": "tv-fake-teeth",
+            "log": "tv-fake-teeth",
+            "minutes": 10,
+            "effects": {
+              "rapture": -1
+            }
+          },
+          {
+            "id": "tv-game",
+            "log": "tv-game",
+            "minutes": 35,
+            "effects": {
+              "rapture": 2
+            }
+          },
+          {
+            "id": "tv-this-hour",
+            "log": "tv-this-hour",
+            "minutes": 15,
+            "effects": {
+              "rapture": -1
+            }
+          },
+          {
+            "id": "tv-movie",
+            "log": "tv-movie",
+            "minutes": 60,
+            "effects": {
+              "rapture": 3
+            }
+          },
+          {
+            "id": "tv-wall",
+            "log": "tv-wall",
+            "minutes": 25,
+            "effects": {
+              "rapture": 1
+            }
+          }
+        ],
+        "warnRaptureLoss": false
+      },
+      {
+        "id": "dishes",
+        "label": "do the dishes",
+        "log": "dishes",
+        "minutes": 30,
+        "effects": {
+          "rapture": -1
+        },
+        "reveal": [
+          "rapture"
+        ],
+        "hideWhenDone": false,
+        "requires": "groceries",
+        "drainRapture": false
+      },
+      {
+        "id": "cook",
+        "label": "cook a meal",
+        "message": "firstRaptureMeal",
+        "firstGainMessage": "firstRaptureMeal",
+        "raptureGain": 5,
+        "requires": "dishes",
+        "minutes": 60,
+        "effects": {
+          "rapture": 5
+        },
+        "reveal": [
+          "rapture"
+        ],
+        "hideWhenDone": false,
+        "log": "log-838f6c4f-744"
+      }
+    ],
+    "messages": {
+      "dinner": "",
+      "dishes": "",
+      "groceries": "money, cure or curse? ",
+      "groceries-cost": "-$50",
+      "cook": "+5 rapture",
+      "firstRaptureMeal": "you squeeze the tomatoes",
+      "meal-recipe": "your mother's recipe",
+      "meal-rapture": "something warm expands inside you",
+      "confirmRaptureLoss": "really? it will cost you",
+      "raptureCost": "you will have to sacrifice some rapture",
+      "tv": "",
+      "money-concept": "you take a minute to remember the concept of money",
+      "money-richer": "your accounts are meager. you can turn that around",
+      "observe-familiar": "it's all familiar",
+      "observe-letters": "the unopened letters, the bruised wallpaper ",
+      "observe-smell": "a neutral smell you can't describe",
+      "observe-dissonance": "a feeling of cosmic dissonance wells inside you",
+      "sunset-dark": "you become somewhat aware it is growing dark outside",
+      "sunset-outside": "without thinking you leave the house to watch the sunset",
+      "sunset-color": "there is a color in the sky you have never seen before, maybe",
+      "sunset-hole": "in the hole you are impressed"
+    },
+    "logs": {
+      "opening": "a day like any other now",
+      "groceries": "15 portions bought",
+      "dishes": "you do the dishes one by one. then the forks",
+      "log-6696e94e-218": "you eat quickly, burning your mouth",
+      "log-838f6c4f-744": "red sauce over rice. you think about your mother",
+      "tv": "",
+      "tv-fake-teeth": "on the screen a man smiles, showing teeth you know are fake",
+      "tv-game": "a game is on. they always try so hard",
+      "tv-this-hour": "at this hour there’s not much on",
+      "tv-movie": "this movie is about a girl with no legs",
+      "tv-wall": "how easy is it for a man to fly through a wall?",
+      "observe": "the pang subsides as quickly as it comes, yet it does not disappear",
+      "sunset": "you have a weird experience watching the sunset",
+      "approved-hardware-cupboard": "you know which key opens this cupboard without looking",
+      "approved-library-paragraph": "you read the same paragraph twice, then look up",
+      "approved-person-pause": "PERSON asks what you were going to say. you try to remember",
+      "approved-food-distro-bag": "you hold the bag open while someone puts the bread inside",
+      "approved-food-distro-tin": "someone asks for one more tin. you reach into the box",
+      "approved-serving-plate": "you lift the plate and fit it back into the groove. but you test it and it still clanks",
+      "approved-person-curtain": "the room is getting dark. they get up to close the curtain",
+      "approved-person-together": "PERSON says they were hoping you wanted to be together"
+    },
+    "statLabels": {
+      "hunger": "hunger",
+      "rapture": "rapture",
+      "money": "money"
+    },
+    "ui": {
+      "skip": "skip intro",
+      "yes": "Y",
+      "no": "N",
+      "next": "read the next line",
+      "back": "previous line",
+      "begin": "BEGIN",
+      "dismiss": "continue",
+      "return": "return",
+      "log": "notepad",
+      "settings": "settings",
+      "restart": "restart intro",
+      "sound": "sound",
+      "motion": "reduce motion",
+      "saved": "Saved on this device",
+      "saveFailed": "Save unavailable",
+      "logDate": "April 3rd",
+      "logStartHour": "14"
+    },
+    "messageLinks": {
+      "confirmRaptureLoss": {
+        "bold": true
+      },
+      "firstRaptureMeal": {
+        "next": "meal-recipe"
+      },
+      "meal-recipe": {
+        "next": "meal-rapture"
+      },
+      "meal-rapture": {},
+      "groceries": {
+        "next": "groceries-cost"
+      },
+      "groceries-cost": {},
+      "money-concept": {
+        "next": "money-richer"
+      },
+      "money-richer": {},
+      "observe-familiar": {
+        "next": "observe-letters"
+      },
+      "observe-letters": {
+        "next": "observe-smell"
+      },
+      "observe-smell": {
+        "next": "observe-dissonance"
+      },
+      "observe-dissonance": {},
+      "sunset-dark": {
+        "next": "sunset-outside"
+      },
+      "sunset-outside": {
+        "next": "sunset-color"
+      },
+      "sunset-color": {
+        "next": "sunset-hole"
+      },
+      "sunset-hole": {
+        "log": "sunset"
+      }
+    },
+    "choiceWarnings": {
+      "question": "confirmRaptureLoss"
+    },
+    "requireActionLogs": true,
+    "textLayouts": {
+      "intro": {
+        "collegetown-setting": {
+          "align": "center"
+        }
+      }
+    },
+    "firstPurchaseMessage": "money-concept",
+    "hungerIndicator": {
+      "enabled": false,
+      "rapidPerHour": 2
+    },
+    "startingValues": {
+      "money": 850,
+      "disquiet": 1
+    },
+    "scheduledEvents": [
+      {
+        "id": "sunset",
+        "hour": 19,
+        "message": "sunset-dark"
+      }
+    ]
+  },
+  "kind": "autosave"
+}

@@ -1,0 +1,486 @@
+{
+  "bank": "retro",
+  "name": "Eerie CD-ROM",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "preparedOn": "2026-09-22",
+  "recipe": "tools/prepare-retro-sounds.py",
+  "note": "Modern licensed sources edited for a 1990s computer/CD-ROM aesthetic; not historical game or OS rips.",
+  "sounds": [
+    {
+      "cue": "money-reveal",
+      "file": "money-reveal.wav",
+      "sha256": "052787b3d138c55333323ada10c0d16f70cedb3144bcaa42f56ab4729dade70b",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/glass_004.ogg",
+      "sourceSha256": "2379b58f953e3d86982aa8cddcae763022c6258e9820171bf905ce58b4e97766",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.55,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.85,
+        "lowpassHz": 5200,
+        "echoSeconds": 0.043,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "money-gain",
+      "file": "money-gain.wav",
+      "sha256": "9ebc9221c2a902ffddafc9848fe81709e54dfde7c00c60f89a93d3840b9ca61c",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/confirmation_002.ogg",
+      "sourceSha256": "33b17a9a9a2397c62b285c52c33a907fdffb476909c99e42dde603f6a7a8b12c",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.62,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.9,
+        "lowpassHz": 4800,
+        "echoSeconds": 0.048,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "money-loss",
+      "file": "money-loss.wav",
+      "sha256": "5d7af4b20254389b7f6dc25efcc53f7c73f5523e487ed7fc30e6933dd47ac458",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-digital/Audio/lowDown.ogg",
+      "sourceSha256": "e0215fcfd8b9d7877f74d5c46b239a13d7db0d25998da97b80404931ef9eef5d",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/digital-audio",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.62,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.82,
+        "lowpassHz": 2400,
+        "echoSeconds": 0,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "rapture-reveal",
+      "file": "rapture-reveal.wav",
+      "sha256": "059ca3543673c5351f83a2e84ac52fe7cf5a488e9eaa9ac156069fbf3fd052e9",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/forceField_000.ogg",
+      "sourceSha256": "c2916f2a062c8ddd1aca2826d134fe90847037db31342726ffb0f9097afe339c",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.65,
+      "edits": {
+        "startSeconds": 0.02,
+        "pitchFactor": 0.68,
+        "lowpassHz": 3200,
+        "echoSeconds": 0.083,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "rapture-gain",
+      "file": "rapture-gain.wav",
+      "sha256": "b040157bb714f13702261921c5f95805e47a403056cc5bc1462d7570058bd327",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/confirmation_004.ogg",
+      "sourceSha256": "568967a3d9f8a8f6af54ea01729c4882284308f2a27d78c07ffd7ee0d6951661",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.78,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.68,
+        "lowpassHz": 3600,
+        "echoSeconds": 0.095,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "rapture-loss",
+      "file": "rapture-loss.wav",
+      "sha256": "a61f009e57e584040bce7e3d6c63a8bacecfcb7116b13e9153d78eed86c19d73",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/forceField_003.ogg",
+      "sourceSha256": "15e3fe971ffd3415e5ab641d3a4d043fb31f6712b0956315b524ba29c3889cda",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.64,
+      "edits": {
+        "startSeconds": 0.04,
+        "pitchFactor": 0.58,
+        "lowpassHz": 1600,
+        "echoSeconds": 0.061,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "disquiet-reveal",
+      "file": "disquiet-reveal.wav",
+      "sha256": "76f2d9ed8d64d47297ba233917d6e7ab4b0dc8dd23d323f067722eba480fb92f",
+      "source": "research/retro-sounds-2026-09-22/sources/qubodup-device/qubodup-edev.flac",
+      "sourceSha256": "d361ad8b7762bde722c5c941cc754c9bb1a07e6b6f02029a499d23713100f9f0",
+      "creator": "qubodup",
+      "sourceUrl": "https://opengameart.org/content/electronic-device-loop",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.53,
+      "edits": {
+        "startSeconds": 0.1,
+        "pitchFactor": 0.9,
+        "lowpassHz": 4300,
+        "echoSeconds": 0.029,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "disquiet-gain",
+      "file": "disquiet-gain.wav",
+      "sha256": "f3e7945f2f5f8f64f38d6347c759400731aa586f15839998b1a65aeda3576448",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/computerNoise_003.ogg",
+      "sourceSha256": "5b1b73bbe6e6ad1b1d39422f640f1bbee3376e8e18916f9305b04b9d143f5cf3",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.63,
+      "edits": {
+        "startSeconds": 0.6,
+        "pitchFactor": 0.8,
+        "lowpassHz": 3600,
+        "echoSeconds": 0.037,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "disquiet-loss",
+      "file": "disquiet-loss.wav",
+      "sha256": "09f5b67eb8adf66775b7c5e15d5224da397796ea4235606ae8b9c2e89fc39708",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/computerNoise_000.ogg",
+      "sourceSha256": "1527944e16eb14b48ee03fe3e7ce6aae94262833a4e1f83928d451a7414fe4e1",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.59,
+      "edits": {
+        "startSeconds": 1.2,
+        "pitchFactor": 0.65,
+        "lowpassHz": 2000,
+        "echoSeconds": 0.055,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "choice-reveal",
+      "file": "choice-reveal.wav",
+      "sha256": "3e5fc27e12d823ddb5ac0c45fc61a463eedb2d131099467d54d8c7379cffa958",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/question_001.ogg",
+      "sourceSha256": "abb8f9e4eb2071491b0b15f84ee302386b1847609310c1b000ae174639a6cc5a",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.52,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.8,
+        "lowpassHz": 4000,
+        "echoSeconds": 0.035,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "choice-gain",
+      "file": "choice-gain.wav",
+      "sha256": "9d0d37ea68b0a02e62e385591cc537cb145fe92bd029f5b7b5456416d8fc1d28",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/open_001.ogg",
+      "sourceSha256": "a27c6bb0df7da1e6af5dd5937593c98bc58b6e513f42fe6a3254cd6a6949c648",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.48,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.65,
+        "lowpassHz": 3800,
+        "echoSeconds": 0.051,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "choice-loss",
+      "file": "choice-loss.wav",
+      "sha256": "efb298501b7c913161ef427fe10e5943938682ad522427ff498ce47ee515c893",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/close_001.ogg",
+      "sourceSha256": "44af8249b933e0fd35ec957a638bb1a0b01f85b53fbe9674bf77bd3ca3168ef4",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.46,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.72,
+        "lowpassHz": 2600,
+        "echoSeconds": 0.057,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "hunger-reveal",
+      "file": "hunger-reveal.wav",
+      "sha256": "0d0bdf9229e1e650854db5bc168cd2cd3663fd91d48fe4d23cb1fdacdcaf16ca",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/slime_000.ogg",
+      "sourceSha256": "480ee82b690136ea9db6966a3c3033356b8274752795c4e37afd6b6defcfacff",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.51,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.72,
+        "lowpassHz": 1900,
+        "echoSeconds": 0.023,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "hunger-gain",
+      "file": "hunger-gain.wav",
+      "sha256": "21fc43748036d63e9fbd600f2e21f5540dfda38e5379fa2704d00c3b8881a965",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-scifi/Audio/slime_001.ogg",
+      "sourceSha256": "822ca475d71e18ef6bba707dbe6bff2bd493d3457b2552f7473d23022c1257ca",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/sci-fi-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.61,
+      "edits": {
+        "startSeconds": 0.25,
+        "pitchFactor": 0.7,
+        "lowpassHz": 2200,
+        "echoSeconds": 0.041,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "hunger-loss",
+      "file": "hunger-loss.wav",
+      "sha256": "08db73aa86bcfd9c337cea18c2ce66b564523b960ca011940c272016e44c1af2",
+      "source": "research/retro-sounds-2026-09-22/sources/cc0-foley/plop_02.ogg",
+      "sourceSha256": "b4cbe7e0c49ad1caf2dc02dc218897bdf9b5bce2e5d11b3b87861dd5269c1749",
+      "creator": "rubberduck",
+      "sourceUrl": "https://opengameart.org/content/100-cc0-sfx",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.49,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.62,
+        "lowpassHz": 1700,
+        "echoSeconds": 0.047,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "gain",
+      "file": "gain.wav",
+      "sha256": "a148cf53e2a6fb4b5f92b2698b6eb80a7d93e9726bf31e38cd47f4cc6e4399a8",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/maximize_003.ogg",
+      "sourceSha256": "df16f25d45189f5d44d6a482ab20d5067350ca8525a9affa1f8ce599e31a20a5",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.55,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.75,
+        "lowpassHz": 4000,
+        "echoSeconds": 0.043,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "loss",
+      "file": "loss.wav",
+      "sha256": "397cc35879c57f215dbe5f63e187c7b825e4047c56af6dfb80d7976651fd69c5",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/minimize_003.ogg",
+      "sourceSha256": "400e1041499de85ec8b5529a35ff36787288175c4696cf2018ecff24a3a3fd29",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.5,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.7,
+        "lowpassHz": 2400,
+        "echoSeconds": 0.037,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "reveal",
+      "file": "reveal.wav",
+      "sha256": "dbb29921bb6155cd25fa677bd09060bc045c08798186f9c0fffee06462ca4b70",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-interface/Audio/question_002.ogg",
+      "sourceSha256": "46056f10c70dda860e93bd27b66f4d33c0b7154eff28def06471b50028efa5b3",
+      "creator": "Kenney",
+      "sourceUrl": "https://kenney.nl/assets/interface-sounds",
+      "license": "CC0-1.0",
+      "durationSeconds": 0.5,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.8,
+        "lowpassHz": 3800,
+        "echoSeconds": 0.041,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": false
+      }
+    },
+    {
+      "cue": "feeding",
+      "file": "feeding.wav",
+      "sha256": "bee195ef5324eb43df58e7eae50622b6d6f1bebc54c428c86834432dd41c6799",
+      "source": "research/retro-sounds-2026-09-22/sources/cc0-foley/machine_01.ogg",
+      "sourceSha256": "9b4ee1e0737a99c63b1ada16766f22231484de244a5deb53986e93957634eff6",
+      "creator": "rubberduck",
+      "sourceUrl": "https://opengameart.org/content/100-cc0-sfx",
+      "license": "CC0-1.0",
+      "durationSeconds": 1.65,
+      "edits": {
+        "startSeconds": 0,
+        "pitchFactor": 0.7,
+        "lowpassHz": 1800,
+        "echoSeconds": 0,
+        "mono": true,
+        "fadesMs": [
+          8,
+          65
+        ],
+        "peakCeiling": 0.62,
+        "rmsTarget": 0.16,
+        "crossfadeLoop": true
+      }
+    }
+  ]
+}

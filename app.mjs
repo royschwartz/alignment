@@ -1,385 +1,417 @@
-import { createGame, choose, getView, serializeGame, restoreGame, inspectSystem, gameDate, ATTRIBUTE_KEYS, attributeDescription } from './stage1-core.mjs';
-import { INTRO } from './stage1-content.mjs';
-import { EFFECTS, SPEEDS, TARGETS, composeFrame, makeTarget, monochrome } from './effects.mjs';
+import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs';
+import { cardChoices } from './author-schema.mjs';
+import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
+import {wrapText,placeText,proseMargin} from './text-layout.mjs';
+import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
+import {logEntries,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs';
+import {logDateTime} from './story-clock.mjs';
+import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
+import {presentedStats,attributeFeedback,animatedValue} from './attribute-feedback.mjs';
+import {phoneScreen,cardLayout,PHONE_FONT} from './phone-screen.mjs';
 
-// The original HyperCard pixel renderer and compositor, with a deliberately
-// small surface: a line of story, or a log, three systems, and four decisions.
+// Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
+// All narrative comes from the author's script; this file only handles presentation.
 const $ = id => document.getElementById(id);
-const canvas = $('card'), context = canvas.getContext('2d', { willReadFrequently: true });
-const audio = new StackAudio(), icons = {}, artwork = {};
-const SAVE_KEY = 'alignment.stage1.v1', UI_KEY = 'alignment.stage1.cards.v2';
-const MIGRATION_BACKUP_KEY = 'alignment.stage1.v1.backup-before-stage1-rewrite';
-const RHYTHM_BACKUP_KEY = 'alignment.stage1.v2.backup-before-metaphysical-rhythm';
-let state, view, screen='main', sceneIndex=0, sceneSource='intro', sceneIntroIndex=0, logIndex=0, readPage=0, systemId='local', systemPage=0, navigation=[], choiceShown=false, introRefusal=false;
-let width, height, currentPixels, currentLayout, busy=false, animationId=0, demoId=0, pulse=true, saveFailed=false, toastTimer, migrationBackupPending=null;
+const canvas = $('card'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+// Roy has paused all in-game audio while auditioning alternatives separately.
+const audio = new StackAudio({bank:'silent'}), icons = {};
 let storage;
-try { storage=window.localStorage; } catch { storage={getItem:()=>null,setItem:()=>{throw Error('Storage unavailable');}}; }
+try { storage = window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
 let prefs;
-try { prefs=JSON.parse(storage.getItem('alignment.preferences'))||{}; } catch {prefs={};}
-prefs={sound:prefs.sound!==false,reduceMotion:prefs.reduceMotion===true||matchMedia('(prefers-reduced-motion: reduce)').matches,largeText:prefs.largeText===true,transition:EFFECTS.includes(prefs.transition)&&prefs.transition!=='flash'?prefs.transition:'authored',speed:SPEEDS[prefs.speed]?prefs.speed:'normal'};
-audio.enabled=prefs.sound;
-const names={rapture:'Rapture',disquiet:'Disquiet',choice:'Choice',hunger:'Hunger',lifestyle:'Lifestyle',resets:'Resets',money:'$$$',food:'Food','skills.coding':'Coding','skills.math':'Math','skills.finance':'Finance','skills.social':'Social','skills.practical':'Practical','relationships.person':'PERSON','relationships.friend':'Your friend','relationships.town':'Town','relationships.jim':'Gringo Jim','relationships.ethan':'Ethan','relationships.wendy':'Wendy','relationships.madame':'MADAME','relationships.priestess':'PRIESTESS','relationships.fool':'FOOL','relationships.sun':'SUN'};
-const shortNames={rapture:'R',disquiet:'D',choice:'C',hunger:'H',lifestyle:'L',resets:'Resets',money:'$',food:'Food'};
-const attributes=[...new Set([...ATTRIBUTE_KEYS,'lifestyle'])];
-const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
-const statFmt=n=>n>0&&n<.1?'<0.1':fmt(Math.floor(n*10+1e-8)/10);
-const attributeValue=stat=>Number(stat==='money'?state.money:stat==='lifestyle'?(view?.lifestyle??state.lifestyle??state.stats[stat]??0):state.stats[stat]??state[stat]??0);
-const attributeFmt=stat=>stat==='money'?attributeValue(stat).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):statFmt(attributeValue(stat));
-const signed=n=>`${n>0?'+':n<0?'−':''}${fmt(Math.abs(n))}`;
-const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const titleCase=value=>value.toLowerCase();
-const clockText=hours=>{const d=gameDate(hours);return `${d.date} · ${String(d.hour).padStart(2,'0')}:${String(d.minute).padStart(2,'0')}`;};
-const position=()=>({screen,sceneIndex,sceneSource,sceneIntroIndex,introRefusal,logIndex,readPage,systemId,systemPage});
-function restorePosition(p){screen=p.screen;sceneIndex=p.sceneIndex||0;sceneSource=p.sceneSource||'outcome';sceneIntroIndex=Math.min(p.sceneIntroIndex||0,INTRO.length-1);introRefusal=p.introRefusal===true;logIndex=p.logIndex||0;readPage=p.readPage||0;systemId=p.systemId||'local';systemPage=p.systemPage||0;}
-function pushScreen(next){navigation.push(position());screen=next;readPage=0;}
-function persist(){try{if(migrationBackupPending!==null){storage.setItem(migrationBackupPending.key,migrationBackupPending.raw);migrationBackupPending=null;}storage.setItem(SAVE_KEY,serializeGame(state));storage.setItem(UI_KEY,JSON.stringify({...position(),navigation,choiceShown,seed:state.seed,turn:state.turn,phase:state.phase,introIndex:state.introIndex}));saveFailed=false;}catch{saveFailed=true;}$('save-status').textContent=saveFailed?'Save unavailable':'Saved on this device';}
-function savePrefs(){try{storage.setItem('alignment.preferences',JSON.stringify(prefs));}catch{}document.documentElement.classList.toggle('reduce-motion',prefs.reduceMotion);}
-function toast(message){$('toast').textContent=prose(message);$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4200);}
-
-const prose=value=>String(value??'').toLowerCase().replace(/\bunquiet\b/g,'UNQUIET');
-function text(ctx,str,x,y,size=14,bold=false,align='left',preserveCase=false,italic=false){ctx.font=`${italic?'italic ':''}${bold?'bold ':''}${size}px monospace`;ctx.textBaseline='top';ctx.textAlign=align;ctx.fillStyle='#000';ctx.fillText(preserveCase?str:prose(str),Math.round(x),Math.round(y));}
-function box(ctx,x,y,w,h,filled=false){ctx.fillStyle=filled?'#000':'#fff';ctx.fillRect(x,y,w,h);ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.strokeRect(x+.5,y+.5,w-1,h-1);}
-function line(ctx,x1,y1,x2,y2){ctx.fillStyle='#000';ctx.fillRect(x1,y1,Math.max(1,x2-x1),Math.max(1,y2-y1));}
-function icon(ctx,name,x,y,scale=1){if(icons[name]){ctx.imageSmoothingEnabled=false;ctx.drawImage(icons[name],Math.round(x),Math.round(y),32*scale,32*scale);}}
-function drawArtwork(ctx,name,x,y,w,h){
-  const image=artwork[name];if(!image||w<=0||h<=0)return;
-  const scale=Math.min(1,w/image.naturalWidth,h/image.naturalHeight),iw=Math.floor(image.naturalWidth*scale),ih=Math.floor(image.naturalHeight*scale);
-  const bounds={name,x:Math.round(x+(w-iw)/2),y:Math.round(y+(h-ih)/2),w:iw,h:ih};
-  ctx.imageSmoothingEnabled=false;ctx.drawImage(image,bounds.x,bounds.y,iw,ih);return bounds;
-}
-function control(layout,label,x,y,w,h,action,extra={}){layout.buttons.push({label,x,y,w,h,action,...extra});}
-function button(ctx,layout,label,x,y,w,h,action,primary=false){box(ctx,x,y,w,h);if(primary){ctx.strokeStyle='#000';ctx.strokeRect(x+3.5,y+3.5,w-7,h-7);}text(ctx,label,x+w/2,y+(h-14)/2,13,true,'center',true);control(layout,label,x,y,w,h,action);}
-function quietButton(ctx,layout,label,x,y,w,h,action,aria=label){text(ctx,label,x+w/2,y+(h-14)/2,13,false,'center');control(layout,aria,x,y,w,h,action);}
-function wrapText(ctx,str,maxWidth,size=13,bold=false){ctx.font=`${bold?'bold ':''}${size}px monospace`;const rows=[];for(const paragraph of String(str).split('\n')){let row='';if(!paragraph.trim()){rows.push('');continue;}for(const word of paragraph.split(/\s+/)){const next=row?row+' '+word:word;if(ctx.measureText(next).width>maxWidth&&row){rows.push(row);row=word;}else row=next;}if(row)rows.push(row);}return rows;}
-function shortLine(ctx,str,maxWidth,size=12){ctx.font=`${size}px monospace`;let out=String(str);while(ctx.measureText(out).width>maxWidth&&out.length)out=out.slice(0,-1);return out.length<String(str).length?out.slice(0,-1)+'…':out;}
-function dither(ctx,x,y,w,h){ctx.fillStyle='#fff';for(let yy=Math.ceil(y);yy<y+h;yy++)for(let xx=Math.ceil(x)+(yy%2);xx<x+w;xx+=2)ctx.fillRect(xx,yy,1,1);}
-function changeSummary(changes){if(!changes?.length)return '';const sums=new Map();for(const c of changes)if(names[c.stat]&&(!attributes.includes(c.stat)||view.revealedStats.includes(c.stat)))sums.set(c.stat,(sums.get(c.stat)||0)+c.amount);return [...sums].filter(([,n])=>Math.abs(n)>=.05).map(([stat,n])=>`${signed(n)} ${names[stat]}`).join(' · ');}
-function sceneData(){
-  const entry=state.journal[Math.max(0,state.journal.length-1-logIndex)];
-  const source=sceneSource==='intro'?INTRO[Math.min(sceneIntroIndex,INTRO.length-1)]:sceneSource==='entry'?entry:state.lastOutcome;
-  if(sceneSource==='intro'&&introRefusal&&source.refusal)return {title:source.title,lines:[source.refusal,source.prompt],kinds:['line','prompt'],art:source.art};
-  if(sceneSource==='intro'&&source.feedingSound)return {title:source.title,lines:[source.text,'',source.afterFeeding,source.titleText],kinds:['line','feeding','line','title'],art:source.art};
-  const lines=String(source?.text||view.text).split(/\n+/).filter(Boolean).flatMap(paragraph=>paragraph.trim().startsWith('*')?[paragraph]:paragraph.split(/(?<=[.!?])\s+(?=[A-Z“])/).filter(Boolean));
-  const kinds=lines.map(line=>line.trim().startsWith('**')?'sound':'line');
-  if(sceneSource==='outcome'&&view.interlude&&source?.title){if(lines[0]?.replaceAll('*','').trim()!==source.title.trim()){lines.unshift(source.title);kinds.unshift('intertitle');}else kinds[0]='intertitle';}
-  if(sceneSource==='intro'&&source.prompt){lines.push(source.prompt);kinds.push('prompt');}
-  return {title:source?.title||view.title,lines:lines.length?lines:['...'],kinds,art:source?.art,artFromLine:source?.artFromLine||0};
-}
-function drawStats(ctx,layout){
-  const rhythm=view.rhythm?.label||'',resets=Number(view.resets??state.resets??0),visible=view.revealedStats.filter(stat=>attributes.includes(stat)||stat==='lifestyle');
-  text(ctx,shortLine(ctx,view.calendar.date,width*.36,10),10,7,10);
-  if(rhythm)text(ctx,rhythm,width*.53,7,10,true,'center');
-  text(ctx,`resets ${resets}`,width-45,7,10,false,'right');
-  const sw=(width-48)/Math.max(1,visible.length);
-  visible.forEach((stat,i)=>{const x=8+i*sw;
-    const amount=attributeFmt(stat),size=Math.min(12,(sw-4)/(amount.length*.61));
-    text(ctx,names[stat]||stat,x,29,Math.min(width<350?9:10,(sw-3)/((names[stat]||stat).length*.61)));text(ctx,amount,x,44,size);
-    layout.statTargets[stat]={x:x+10,y:45};layout.statRects[stat]={x:Math.floor(x),y:25,w:Math.ceil(sw-2),h:36};
-    control(layout,`${stat==='money'?'Money in dollars':names[stat]} ${amount}. about ${names[stat]}`,x,24,sw-2,40,'attribute:'+stat);
+try { prefs = JSON.parse(storage.getItem('alignment.preferences')) || {}; } catch { prefs = {}; }
+prefs = { sound: false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
+audio.enabled = prefs.sound;
+let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
+const statCues=new Map();let statCueTimer=null;
+function stopStatCue(){clearInterval(statCueTimer);statCueTimer=null;statCues.clear();audio.cancelCues();}
+function startAttributeFeedback(before,after){
+  const now=performance.now(),feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
+  audio.unlock();
+  feedback.forEach((change,index)=>{
+    const revealDelay=currentWarning(after)?.revealsRapture?900:260;
+    const delay=(change.reveal?revealDelay:280)+index*100;
+    const start=now+delay+(change.reveal&&change.amount?550:0);
+    statCues.set(change.stat,{...change,start,revealStart:now+delay,end:start+Math.max(1400,change.duration*1000)});
+    if(change.reveal)audio.attribute('reveal',{stat:change.stat,delay:delay/1000});
+    if(change.amount)audio.attribute(change.amount>0?'gain':'loss',{stat:change.stat,duration:change.duration,volume:change.volume/Math.sqrt(feedback.filter(c=>c.amount).length),delay:(start-now)/1000});
   });
-  quietButton(ctx,layout,'· ·',width-38,0,38,64,'settings','settings');
-  line(ctx,0,64,width,65);
-  layout.rhythm=view.rhythm||null;layout.resets=resets;
+  if(!feedback.length)return;
+  statCueTimer=setInterval(()=>{
+    if(busy)return;
+    for(const [stat,cue] of statCues)if(performance.now()>=cue.end)statCues.delete(stat);
+    if(!statCues.size){clearInterval(statCueTimer);statCueTimer=null;}
+    const frame=draw();pixels=frame.pixels;paint(pixels);
+  },40);
 }
-function drawScene(ctx,layout){
-  const data=sceneData();sceneIndex=Math.max(0,Math.min(sceneIndex,data.lines.length-1));
-  const current=data.lines[sceneIndex],kind=data.kinds?.[sceneIndex]||'line',emphasis=current.startsWith('*')&&!current.startsWith('**'),font=kind==='intertitle'?(width<350?23:27):kind==='title'?(width<350?15:17):prefs.largeText?19:16;
-  const art=kind!=='feeding'&&kind!=='title'&&sceneIndex>=(data.artFromLine||0)?data.art:null,beside=art&&width>height;
-  const prompt=kind==='prompt',centered=kind==='title'||kind==='intertitle',bold=prompt||kind==='sound'||centered,rows=wrapText(ctx,current.replaceAll('*',''),beside?Math.floor(width*.48)-52:width-52,font,bold),leading=font+9;
-  const y=art?(beside?Math.max(86,Math.floor(65+(height-140-rows.length*leading)/2)):92):Math.max(86,Math.floor(65+(height-160)*.43-rows.length*leading/2));
-  if(art){
-    const top=beside?86:y+rows.length*leading+18,left=beside?Math.floor(width*.48):26;
-    layout.art=drawArtwork(ctx,art,left,top,width-left-26,height-89-top);
+let screen = 'main';
+let editorPreview = null, testBackup = null, actionPage = 0, textPage = 0, logPage = 0, editor = null, lastViewportWidth = 0;
+const STORY_FONT = 16, BODY_FONT = 13, SMALL_FONT = 10;
+const CHOICES_PER_PAGE=4;
+// Every screen uses the preview's portrait-card format at native text size.
+function choiceSize(){const grid=cardLayout(2,width,height);return {w:grid.w,h:grid.h};}
+function choiceGrid(count,bottom=height-94){
+  return cardLayout(Math.min(count,CHOICES_PER_PAGE),width,height,`${state?.randomSeed}:${state?.events.length}:${state?.node}`,bottom);
+}
+const save = () => {
+  if (testBackup) return;
+  try { storage.setItem(SAVE_KEY, serializeGame(state)); saveFailed = false; } catch { saveFailed = true; }
+  $('save-status').textContent = saveFailed ? UI.saveFailed : UI.saved;
+};
+function savePrefs() {
+  try { const previous = JSON.parse(storage.getItem('alignment.preferences')) || {}; storage.setItem('alignment.preferences', JSON.stringify({ ...previous, ...prefs })); } catch {}
+}
+function font(c, size, bold = false, italic = false) {
+  c.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px ${PHONE_FONT}`;
+  c.textBaseline = 'top'; c.fillStyle = '#000';
+}
+function text(c, value, x, y, size = BODY_FONT, { bold = false, italic = false, center = false } = {}) {
+  font(c, size, bold, italic); c.textAlign = center ? 'center' : 'left';
+  c.fillText(value, Math.round(x), Math.round(y));
+}
+function box(c, x, y, w, h) {
+  c.fillStyle = '#fff'; c.fillRect(x, y, w, h); c.strokeStyle = '#000'; c.lineWidth = 1;
+  c.strokeRect(x + .5, y + .5, w - 1, h - 1);
+}
+function rule(c, y) { c.fillStyle = '#000'; c.fillRect(1, y, width - 2, 1); }
+function control(out, label, x, y, w, h, action, available = true) {
+  out.buttons.push({ label, x, y, w, h, action, available });
+}
+function quiet(c, out, label, x, y, w, h, action, accessible = label) {
+  text(c, label, x + w / 2, y + (h - SMALL_FONT) / 2, SMALL_FONT, { center: true });
+  control(out, accessible, x, y, w, h, action);
+}
+function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false } = {}) {
+  if(card){c.fillStyle='#000';c.fillRect(x+1,y+1,w,h);}
+  box(c, x, y, w, h);
+  if (primary) c.strokeRect(x + 3.5, y + 3.5, w - 7, h - 7);
+  font(c,BODY_FONT,!card);const measure=value=>c.measureText(value).width;
+  const rows = wrapText(label,w-28,measure);
+  const leading = BODY_FONT + 6;
+  const positioned=placeText(rows,{measure,bounds:{x:x+14,y:y+10,w:w-28,h:h-20},leading,fontSize:BODY_FONT,
+    top:y+(h-leading*rows.length)/2+3,layout:textLayout||{align:'center'},autoCenter:rows.length===1,scaleWidth:w,scaleHeight:h});
+  positioned.forEach(row=>text(c,row.text,row.x,row.y,BODY_FONT,{bold:!card}));
+  if (!available) {
+    c.fillStyle = '#fff';
+    for (let yy = y + 2; yy < y + h - 2; yy++) for (let xx = x + 2 + (yy % 2); xx < x + w - 2; xx += 2) c.fillRect(xx, yy, 1, 1);
   }
-  if(kind!=='feeding')rows.forEach((row,i)=>text(ctx,row,centered?width/2:26,y+i*leading,font,bold,centered?'center':'left',true,emphasis));
-  layout.text=kind==='feeding'?'[sound of feeding, like a garbage disposal]':current.replaceAll('*','');layout.cardTitle=data.title;layout.scene={index:sceneIndex,count:data.lines.length,lines:data.lines,source:sceneSource,kind,text:layout.text,bold,italic:emphasis,prompt:prompt?current:null,refusal:introRefusal};
-  const final=sceneIndex===data.lines.length-1;
-  if(!final){control(layout,'read the next line',1,66,width-2,height-139,'next-line');if(kind!=='feeding')quietButton(ctx,layout,'→',width-65,height-65,48,48,'next-line','read the next line');}
-  else if(sceneSource==='intro'&&prompt){
-    const bw=Math.min(100,Math.floor((width-110)/2));button(ctx,layout,'Yes',width-bw*2-32,height-67,bw,46,'continue',true);button(ctx,layout,'No',width-bw-18,height-67,bw,46,'decline',true);
-  }else if(sceneSource==='intro'){
-    const label=kind==='title'?'Begin':INTRO[sceneIntroIndex].button,bw=Math.min(width-86,Math.max(164,label.length*8+20));
-    button(ctx,layout,shortLine(ctx,label,bw-16,13),width-bw-18,height-67,bw,46,'continue',true);
-  }else if(sceneSource==='outcome'&&view.interlude)button(ctx,layout,'Continue',width-160,height-67,142,46,'continue_interlude',true);
-  else if(sceneSource==='outcome'&&state.phase==='dream')button(ctx,layout,'Sleep',width-160,height-67,142,46,'sleep',true);
-  else if(sceneSource==='outcome'&&state.phase==='complete')button(ctx,layout,'BEGIN STAGE 2',width-202,height-67,184,46,'begin_stage2',true);
-  else button(ctx,layout,sceneSource==='entry'?'back to log':state.phase==='playing'?'return':'close',width-160,height-67,142,46,'close-scene');
-  if(kind!=='feeding'&&(sceneIndex>0||introRefusal||sceneSource!=='intro'||sceneIntroIndex>0))quietButton(ctx,layout,'←',12,height-65,48,48,'back','previous line or back');
-  if(sceneSource==='intro'&&sceneIntroIndex===0&&sceneIndex===0&&!introRefusal)text(ctx,'tap to read',26,height-49,10);
+  control(out, label, x, y, w, h, action, available);
+  if(card)out.cards?.push({action,x,y,w,h});
 }
-function unlockCue(entry){const cues={local:'Home is open. Look around. Set an intention.',fintech:'Work is open. Think about what comes next.',social:'Town is open. Think about who to see.'};return (entry?.unlockedSystems||[]).map(id=>cues[id]).filter(Boolean).join(' ');}
-function latestMessage(){return [unlockCue(state.lastOutcome),String(state.lastOutcome?.text||view.text||'').replaceAll('*','').replace(/\s+/g,' ').trim()].filter(Boolean).join(' ');}
-const logHeight=()=>height<500?40:60;
-function drawLogStrip(ctx,layout){
-  const all=wrapText(ctx,height<500&&view.crisis?crisisWarning():latestMessage(),width-50,12),rows=all.slice(0,2);if(all.length>2)rows[1]=shortLine(ctx,rows[1],width-60,12)+'…';rows.forEach((row,i)=>text(ctx,shortLine(ctx,row,width-50,12),14,73+i*17,12,false,'left',true));
-  text(ctx,'+',width-24,79,15);line(ctx,0,65+logHeight(),width,66+logHeight());
-  control(layout,`Open log. ${latestMessage()}`,1,66,width-2,logHeight()-1,'open-log');
+function choiceImage(id,blank=false) {
+  const c=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
+  const {w,h}=choiceSize();c.canvas.width=w;c.canvas.height=h;
+  button(c,{buttons:[]},blank?'':ACTIONS.find(a=>a.id===id)?.label||'',0,0,w,h,id,{textLayout:TEXT_LAYOUTS.actions?.[id]||{},card:true});
+  const frame=monochrome(c,w,h);
+  c.putImageData(new ImageData(new Uint8ClampedArray(frame.buffer,frame.byteOffset,frame.byteLength),w,h),0,0);
+  return {url:c.canvas.toDataURL('image/png'),width:w,height:h};
 }
-function drawSystems(ctx,layout){
-  const spacing=70,start=width/2-spacing-22;
-  for(const [i,system] of view.systems.entries()){
-    const x=Math.round(start+i*spacing),y=80+logHeight();
-    icon(ctx,{local:'tree',fintech:'computer',social:'people'}[system.id],x+6,y+4);
-    if(!system.unlocked){dither(ctx,x+6,y+4,32,32);box(ctx,x+31,y+29,10,9);ctx.strokeStyle='#000';ctx.strokeRect(x+33.5,y+25.5,5,5);}
-    control(layout,`${system.label}${system.unlocked?'':'. Not available yet'}`,x,y-2,48,48,'system:'+system.id,{available:system.unlocked});
+function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (icons[name]) c.drawImage(icons[name], Math.round(x), Math.round(y), size, size); }
+function header(c, out) {
+  // Reserve each attribute's place even while it is hidden. Totals and direct
+  // change badges stay in this same slot as other attributes are introduced.
+  presentedStats(state,HUNGER_INDICATOR).forEach(([id,value]) => {
+    const x=headerStatX(id,width);
+    const now=performance.now(),cue=statCues.get(id);
+    if(cue?.reveal&&now<cue.revealStart)return;
+    if(!cue?.reveal||now>=cue.revealStart+1200||prefs.reduceMotion||Math.floor((now-cue.revealStart)/300)%2===0)icon(c,STAT_ICONS[id],x-16,21);
+    text(c,STAT_LABELS[id],x,8,SMALL_FONT,{center:true});
+    const shown=animatedValue(cue,now,prefs.reduceMotion)??value;
+    const number=String(id==='money'?Math.round(shown*100)/100:Math.round(shown*10)/10);
+    text(c,number,x,55,BODY_FONT,{bold:true,center:true});
+    if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:55,w:c.measureText(number).width+2,h:14,...hungerTrend(state,HUNGER_INDICATOR)};
+    if(cue?.displayAmount&&now>=cue.start)text(c,signedChange(cue.displayAmount),x,70,SMALL_FONT,{center:true});
+  });
+  quiet(c, out, '· ·', width - 45, 16, 44, 48, 'settings', UI.settings);
+  rule(c, 82);
+}
+const LOG_MARGIN=12,LOG_PADDING=10;
+const dateBar=()=>logDateTime(UI,state.elapsedMinutes);
+function logDateRows(c) {
+  font(c,SMALL_FONT);
+  return wrapText(dateBar(),width-2*(LOG_MARGIN+LOG_PADDING),value=>c.measureText(value).width);
+}
+const logDateHeight=rows=>rows.length?rows.length*(SMALL_FONT+4)+4:0;
+function logRows(c,entries,size) {
+  font(c,size);const measure=value=>c.measureText(value).width;
+  const maxWidth=width-2*(LOG_MARGIN+LOG_PADDING);
+  return entries.flatMap(({id,changes=[]},entry)=>{
+    const rows=LOGS[id]?wrapText(LOGS[id],maxWidth,measure):[];
+    const badges=changeRows(changes,maxWidth,measure).map(row=>({...row,text:changesText(row.tokens,STAT_LABELS),id,entry,height:Math.max(size,LOG_ICON_SIZE)+8}));
+    if(!rows.length&&!badges.length)return [];
+    return [...rows.map(row=>({...row,id,entry,autoCenter:rows.length===1,height:size+10})),...badges,{text:'',line:0,entry:null,height:12}];
+  });
+}
+function logSheet(c,rows,{y=102,h=140,size=BODY_FONT,bottomInset=12}={}) {
+  const dateRows=logDateRows(c),dateHeight=logDateHeight(dateRows);
+  const x=LOG_MARGIN,w=width-2*LOG_MARGIN,leading=size+10,top=y+12+dateHeight;
+  c.fillStyle='#000';c.fillRect(x+3,y+3,w,h);box(c,x,y,w,h);
+  dateRows.forEach((row,index)=>text(c,row.text,x+LOG_PADDING,y+12+index*(SMALL_FONT+4),SMALL_FONT));
+  font(c,size);const measure=value=>c.measureText(value).width;
+  const offsets=[];let offset=0;for(const row of rows){offsets.push(offset);offset+=row.height;}
+  for(const entry of new Set(rows.filter(row=>row.entry!==null&&!row.tokens).map(row=>row.entry))) {
+    const first=rows.findIndex(row=>row.entry===entry&&!row.tokens),group=rows.filter(row=>row.entry===entry&&!row.tokens);
+    const positioned=placeText(group,{measure,bounds:{x:x+LOG_PADDING,y:top,w:w-2*LOG_PADDING,h:h-12-bottomInset-dateHeight},leading,fontSize:size,
+      top:top+offsets[first],layout:TEXT_LAYOUTS.logs?.[group[0].id]||{},autoCenter:group[0].autoCenter});
+    positioned.forEach(row=>text(c,row.text,row.x,row.y,size));
   }
+  rows.forEach((row,index)=>{if(!row.tokens)return;const left=x+(w-row.width)/2,y=top+offsets[index];
+    row.tokens.forEach(token=>{text(c,token.label,left+token.x,y+(LOG_ICON_SIZE-size)/2,size);if(token.icon)icon(c,token.icon,left+token.x+measure(token.label)+LOG_ICON_GAP,y,LOG_ICON_SIZE);});
+  });
+  return y+h+3;
 }
-function drawOffer(ctx,layout,offer,x,y,w,h,wait=false){
-  box(ctx,x,y,w,h);
-  const intention=offer.category==='intention'||offer.id.startsWith('intent:'),choiceVisible=!intention&&view.revealedStats.includes('choice'),footer=choiceVisible||intention;
-  if(intention&&offer.selected){ctx.strokeStyle='#000';ctx.strokeRect(x+3.5,y+3.5,w-7,h-7);}
-  if(!intention&&offer.thorny&&view.revealedStats.includes('rapture')){
-    ctx.fillStyle='#000';
-    for(let yy=y+12;yy<y+h-7;yy+=17){for(const side of [-1,1]){const edge=side<0?x:x+w;ctx.beginPath();ctx.moveTo(edge,yy-5);ctx.lineTo(edge+side*5,yy+1);ctx.lineTo(edge,yy+5);ctx.lineTo(edge-side*4,yy);ctx.closePath();ctx.fill();}}
-    for(let xx=x+15;xx<x+w-8;xx+=19){for(const side of [-1,1]){const edge=side<0?y:y+h;ctx.beginPath();ctx.moveTo(xx-4,edge);ctx.lineTo(xx+1,edge+side*5);ctx.lineTo(xx+5,edge);ctx.closePath();ctx.fill();}}
+function notebook(c,out,entries=logEntries(state)) {
+  header(c,out);
+  const lines=logRows(c,entries,STORY_FONT);
+  const h=height-202,paginated=logPages(lines,h-72-logDateHeight(logDateRows(c))),pages=paginated.length;
+  logPage=Math.min(logPage,pages-1);const rows=paginated[logPage];
+  logSheet(c,rows,{y:102,h,size:STORY_FONT,bottomInset:pages>1?60:12});
+  if(pages>1){quiet(c,out,'←',34,height-151,48,38,'log-prev');quiet(c,out,`${logPage+1} / ${pages} →`,width-148,height-151,114,38,'log-next');}
+  out.logPages=pages;out.text=[dateBar(),rows.map(row=>row.text).join('\n')].filter(Boolean).join('\n');
+  button(c,out,UI.return,width-166,height-78,144,56,'close-log');
+}
+function scene(c, out, node, intro = true) {
+  const blank = node.kind === 'feeding';
+  const isTitle = node.kind === 'title';
+  const choices = cardChoices(node).map(choice=>({...choice,label:node.yes&&!node.choices?UI[choice.id]:choice.label}));
+  const options = { bold: node.bold === true, italic: node.italic === true };
+  // Restore the original type sizes while retaining the portrait card.
+  const size = isTitle ? (width < 350 ? 15 : 17) : STORY_FONT;
+  font(c,size,options.bold,options.italic);const measure=value=>c.measureText(value).width,margin=proseMargin(width);
+  const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
+  const leading = size + 10;
+  const bottom = choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
+  const capacity = Math.max(1,Math.floor((bottom-120)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
+  const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
+  const top = Math.max(intro ? 96 : 120, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
+  const textLayout=TEXT_LAYOUTS[intro?'intro':'messages']?.[node.id]||{};
+  const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:intro?96:120,w:width-2*margin,h:bottom-(intro?96:120)},leading,fontSize:size,top,
+    layout:textLayout,autoCenter:rows.length===1,scaleWidth:width,scaleHeight:height});
+  positioned.forEach(row=>text(c,row.text,row.x,row.y,size,options));
+  out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
+  out.text = blank ? node.sound : pages>1?visibleRows.map(row=>row.text).join('\n'):node.text;
+  if(pages>1)text(c,`${page+1} / ${pages}`,width/2,height-47,SMALL_FONT,{center:true});
+  if (!intro) {
+    // Result cards dismiss by tapping the card, just like reading an intertitle.
+    control(out, UI.dismiss, 1, 1, width - 2, height - 2, 'dismiss-message');
+    header(c, out);
+    if(page>0)quiet(c,out,'←',14,height-78,56,56,'scene-prev',UI.back);
+    return;
   }
-  if(!intention&&(offer.blinking||offer.appealing)&&view.revealedStats.includes('rapture')&&(pulse||prefs.reduceMotion)){
-    for(const [cx,cy] of [[x+9,y+9],[x+w-9,y+h-9]]){ctx.fillStyle='#000';ctx.fillRect(cx-4,cy,9,1);ctx.fillRect(cx,cy-4,1,9);ctx.fillRect(cx-1,cy-1,3,3);}
+  if (blank) {
+    // The feeding sound plays over a completely blank card. Tap/keyboard advances.
+    control(out, UI.next, 1, 1, width - 2, height - 2, 'next');
+    return;
   }
-  const font=prefs.largeText?15:13,rows=wrapText(ctx,wait?'...':offer.label,w-27,font,true);
-  const maxRows=Math.max(2,Math.floor((h-(footer?31:16))/(font+4))),shown=rows.slice(0,maxRows);
-  if(rows.length>maxRows)shown[maxRows-1]=shortLine(ctx,shown[maxRows-1]+'…',w-23,font);
-  const y0=y+Math.max(12,(h-shown.length*(font+4)-(footer?16:0))/2);
-  shown.forEach((row,i)=>text(ctx,row,x+w/2,y0+i*(font+4),wait?23:font,true,'center',true));
-  if(choiceVisible)text(ctx,offer.available?`${offer.requirement} Choice`:offer.requirement>state.stats.choice?`Needs ${offer.requirement} Choice`:shortLine(ctx,offer.lockedReason.replace('You need','Needs').replace(/\.$/,''),w-14,width<350?9:10),x+w/2,y+h-19,width<350?9:10,!offer.available,'center');
-  if(intention)text(ctx,offer.selected?'in mind':'set intention',x+w/2,y+h-19,width<350?9:10,offer.selected,'center');
-  if(!offer.available)dither(ctx,x+2,y+2,w-4,h-4);
-  const detail=`${offer.label}. ${offer.description} ${intention?(offer.selected?'Current intention. ':'')+'Setting an intention takes no time.':`${fmt(offer.duration)} hours.${choiceVisible?` Requires ${offer.requirement} Choice.`:''}`}${offer.available?'':' Unavailable.'}`;
-  control(layout,detail,x,y,w,h,offer.id,{available:offer.available,offerId:offer.id,intention,selected:offer.selected===true,thorny:!intention&&offer.thorny===true,appealing:!intention&&(offer.blinking||offer.appealing)===true});
-}
-function crisisWarning(){return /will kill you both/i.test(view.offers.find(o=>o.id==='crisis_leave')?.description||'')?'Leaving now will kill you both.':'Your friend’s pain is yours. You need help.';}
-function storyReading(ctx,event){
-  const font=prefs.largeText?17:14,leading=font+8,rows=wrapText(ctx,event.text.replaceAll('*',''),width-48,font);
-  const capacity=Math.max(3,Math.floor((height-216)/leading));
-  return {font,leading,rows,capacity,narrativePages:Math.max(1,Math.ceil(rows.length/capacity))};
-}
-function drawStoryEvent(ctx,layout){
-  const event=view.storyEvent,{font,leading,rows,capacity,narrativePages}=storyReading(ctx,event);
-  readPage=Math.max(0,Math.min(readPage,narrativePages));
-  text(ctx,shortLine(ctx,event.title,width-(readPage===narrativePages?96:48),14),24,readPage===narrativePages?78:87,14,true,'left',true);
-  if(readPage<narrativePages){
-    const pageRows=rows.slice(readPage*capacity,(readPage+1)*capacity);
-    pageRows.forEach((row,i)=>text(ctx,row,24,128+i*leading,font,false,'left',true));
-    button(ctx,layout,readPage===narrativePages-1?'Respond':'Continue',width-162,height-68,142,46,'read-next',true);
-    layout.text=`${event.title}\n\n${pageRows.join('\n')}`;
-  }else{
-    const options=event.options||view.offers,gap=10,bh=Math.max(68,Math.min(86,Math.floor((height-124-gap*(options.length-1))/options.length))),start=height-24-options.length*bh-gap*(options.length-1);
-    options.forEach((offer,i)=>drawOffer(ctx,layout,offer,20,start+i*(bh+gap),width-40,bh));
-    layout.text=event.title+'\n\n'+options.map(o=>o.label).join('\n');
-  }
-  if(readPage>0&&readPage<narrativePages)quietButton(ctx,layout,'←',12,height-68,48,46,'read-previous','Previous page');
-  else if(readPage===narrativePages)quietButton(ctx,layout,'←',width-56,65,44,44,'read-previous','Read the event again');
-  layout.cardTitle=event.title;layout.page=readPage;layout.pageCount=narrativePages+1;
-  layout.storyEvent={id:event.id,page:readPage,narrativePages,responding:readPage===narrativePages};
-}
-function drawMain(ctx,layout){
-  if(view.storyEvent){drawStoryEvent(ctx,layout);return;}
-  drawLogStrip(ctx,layout);drawSystems(ctx,layout);layout.text=latestMessage();
-  const margin=18,gap=14,bw=Math.floor((width-margin*2-gap)/2),bh=Math.max(72,Math.min(108,Math.floor(height*.145))),bottom=height-23,startY=bottom-bh*2-gap;
-  if(state.phase==='playing'){
-    const offers=[...view.offers,view.wait].filter(Boolean);offers.forEach((offer,i)=>drawOffer(ctx,layout,offer,offers.length===1?margin:margin+(i%2)*(bw+gap),offers.length===1?bottom-bh:startY+Math.floor(i/2)*(bh+gap),offers.length===1?width-margin*2:bw,bh,offer.id==='wait'));
-    if(view.rhythm?.scheduledWork&&height>=500)text(ctx,'your shift is due.',20,(offers.length===1?bottom-bh:startY)-40,12,true);
-    if(view.crisis&&height>=500){const message=crisisWarning();const rows=wrapText(ctx,message,width-40,12,true);rows.forEach((row,i)=>text(ctx,row,20,startY-rows.length*16-20+i*16,12,true));}
-    else if(!view.crisis&&height>=500&&view.revealedStats.includes('choice')&&view.offers.some(o=>!o.available&&o.requirement>state.stats.choice)){const rows=wrapText(ctx,'You want to. You cannot make yourself.',width-40,12);rows.forEach((row,i)=>text(ctx,row,20,startY-rows.length*16-20+i*16,12));}
-  }else{
-    const heading={dream:'A life together',complete:'Stage 1 complete',stage2:'Stage 2'}[state.phase]||'The same silence';
-    text(ctx,heading,width/2,startY+15,15,true,'center');
-    button(ctx,layout,state.phase==='stage2'?'Read the opening':'Read the ending',margin,startY+60,width-margin*2,46,'read-ending');
-    quietButton(ctx,layout,'Begin again',width/2-75,Math.min(height-63,startY+124),150,44,'restart');
-  }
-}
-function header(ctx,layout,label,offset=0){quietButton(ctx,layout,'←',10,73+offset,44,44,'back','Back');text(ctx,label,66,87+offset,14,false);line(ctx,12,124+offset,width-12,125+offset);}
-function drawReading(ctx,layout,title,passages){
-  header(ctx,layout,title);const font=prefs.largeText?16:13,leading=font+7,lines=wrapText(ctx,passages.replaceAll('*',''),width-40,font),capacity=Math.max(3,Math.floor((height-205)/leading));
-  const count=Math.max(1,Math.ceil(lines.length/capacity));readPage=Math.max(0,Math.min(readPage,count-1));
-  lines.slice(readPage*capacity,(readPage+1)*capacity).forEach((row,i)=>text(ctx,row,20,144+i*leading,font,false,'left',true));
-  if(readPage>0)quietButton(ctx,layout,'← page',14,height-60,92,44,'read-previous');
-  if(readPage<count-1)quietButton(ctx,layout,'page →',width-106,height-60,92,44,'read-next');
-  layout.text=lines.slice(readPage*capacity,(readPage+1)*capacity).join('\n');layout.page=readPage;layout.pageCount=count;
-}
-function drawLog(ctx,layout){
-  logIndex=Math.max(0,Math.min(logIndex,state.journal.length-1));const entry=state.journal[state.journal.length-1-logIndex];
-  const value=entry?`${entry.title}\n${clockText(entry.hours)}\n\n${entry.text}\n\n${unlockCue(entry)}\n\n${changeSummary(entry.changes)}`:'A sound comes from the woods.';
-  drawReading(ctx,layout,'Log',value);
-  if(logIndex<state.journal.length-1)quietButton(ctx,layout,'‹',width-100,73,44,44,'log-older','Older message');
-  if(logIndex>0)quietButton(ctx,layout,'›',width-53,73,44,44,'log-newer','Newer message');
-}
-function currentReadingPages(ctx,value){const font=prefs.largeText?16:13,capacity=Math.max(3,Math.floor((height-205)/(font+7)));return Math.max(1,Math.ceil(wrapText(ctx,value.replaceAll('*',''),width-40,font).length/capacity));}
-function drawSystem(ctx,layout){
-  const system=view.systems.find(s=>s.id===systemId);if(!system?.unlocked){screen='main';drawMain(ctx,layout);return;}
-  drawLogStrip(ctx,layout);header(ctx,layout,system.label,logHeight());const font=prefs.largeText?15:12;
-  const prose=system.text,rows=wrapText(ctx,prose,width-40,font);
-  const bh=height<500?64:74,perPage=height<500?2:height<650?4:6,gap=10,bw=Math.floor((width-50)/2);
-  const total=Math.max(1,Math.ceil(system.actions.length/perPage));systemPage=Math.min(systemPage,total-1);
-  const shown=system.actions.slice(systemPage*perPage,(systemPage+1)*perPage),actionHeight=Math.max(1,Math.ceil(shown.length/2))*(bh+gap)-gap,actionY=height-actionHeight-63;
-  const maxRows=Math.max(2,Math.floor((actionY-156-logHeight())/(font+6))); if(rows.length>maxRows)rows[maxRows-1]=shortLine(ctx,rows[maxRows-1],width-50,font)+'…';
-  rows.slice(0,maxRows).forEach((row,i)=>text(ctx,shortLine(ctx,row,width-40,font),20,143+logHeight()+i*(font+6),font));
-  control(layout,'Read about '+system.label,18,139+logHeight(),width-36,Math.max(28,actionY-148-logHeight()),'system-details');
-  shown.forEach((o,i)=>drawOffer(ctx,layout,o,20+(i%2)*(bw+10),actionY+Math.floor(i/2)*(bh+gap),bw,bh));
-  if(systemPage>0)quietButton(ctx,layout,'←',14,height-56,48,44,'system-previous','Previous intentions');
-  if(systemPage<total-1)quietButton(ctx,layout,'More →',width-106,height-56,92,44,'system-next','More intentions');
-  text(ctx,'looking takes no time',width/2,height-41,10,false,'center');
-  layout.text=system.label+'. '+prose;layout.page=systemPage;layout.pageCount=total;
-}
-function inspectVisibleSystem(){if(screen!=='system')return;const system=getView(state).systems.find(s=>s.id===systemId),perPage=height<500?2:height<650?4:6;const max=Math.max(0,Math.ceil((system?.actions.length||0)/perPage)-1);systemPage=Math.min(systemPage,max);state=inspectSystem(state,systemId,system?.actions.slice(systemPage*perPage,(systemPage+1)*perPage).map(o=>o.id)||[]);}
-function drawGame(){
-  inspectVisibleSystem();view=getView(state);
-  if(view.interlude&&screen==='main'){sceneSource='outcome';sceneIndex=0;screen='scene';}
-  const ctx=document.createElement('canvas').getContext('2d',{willReadFrequently:true});ctx.canvas.width=width;ctx.canvas.height=height;box(ctx,0,0,width,height);
-  choiceShown=view.revealedStats.includes('choice');
-  const layout={buttons:[],page:0,pageCount:1,statTargets:{},statRects:{},revealedStats:[...view.revealedStats],cardTitle:'Alignment',text:'',scene:null};
-  const activeScene=screen==='scene'?sceneData():null;if(activeScene)sceneIndex=Math.max(0,Math.min(sceneIndex,activeScene.lines.length-1));
-  const sceneKind=activeScene?.kinds?.[sceneIndex];
-  if(sceneKind!=='feeding'&&sceneKind!=='title')drawStats(ctx,layout);
-  if(screen==='scene')drawScene(ctx,layout);else if(screen==='log')drawLog(ctx,layout);else if(screen==='system')drawSystem(ctx,layout);else if(screen==='system-detail'){const system=view.systems.find(s=>s.id===systemId);drawReading(ctx,layout,system?.label||'Your life',[system?.text,system?.hint,'Setting an intention changes what you look for next. It takes no time.'].filter(Boolean).join('\n\n'));}else if(screen==='progress')drawReading(ctx,layout,'Your life',view.milestones.map(m=>`${m.done?'[x]':'[ ]'} ${m.label}\n${m.detail}`).join('\n\n'));else drawMain(ctx,layout);
-  return {pixels:monochrome(ctx,width,height),layout};
-}
-function paint(pixels,ctx=context,w=width,h=height){ctx.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer,pixels.byteOffset,pixels.byteLength),w,h),0,0);}
-function allOffers(){return [...view.offers,view.wait,...view.systems.flatMap(s=>s.actions)].filter(Boolean);}
-function installControls(layout,focusAction){
-  $('controls').replaceChildren();
-  for(const b of layout.buttons){const el=document.createElement('button');el.textContent=prose(b.label);el.setAttribute('aria-label',prose(b.label));el.dataset.action=b.action;el.setAttribute('aria-disabled',String(b.available===false));
-    if(b.intention)el.setAttribute('aria-pressed',String(b.selected));
-    if(b.thorny)el.dataset.thorny='true';if(b.appealing)el.dataset.appealing='true';
-    if(b.action==='settings')el.id='settings-button';if(b.action==='continue')el.id='continue-intro';
-    Object.assign(el.style,{left:`${b.x}px`,top:`${b.y}px`,width:`${b.w}px`,height:`${Math.min(b.h,height-b.y)}px`});
-    let timer,held=false;
-    if(b.offerId){el.onpointerdown=()=>{held=false;timer=setTimeout(()=>{held=true;inspectOffer(b.offerId);},550);};el.onpointerup=el.onpointercancel=el.onpointerleave=()=>clearTimeout(timer);el.oncontextmenu=e=>{e.preventDefault();held=true;inspectOffer(b.offerId);};}
-    el.onclick=()=>{if(held){held=false;return;}activate(b.action);};$('controls').append(el);if(focusAction===b.action)el.focus({preventScroll:true});
-  }
-  const narration=layout.text+' '+view.calendar.date+'. '+(view.rhythm?.label?view.rhythm.label+'. ':'')+`Resets ${view.resets??state.resets??0}. `+view.revealedStats.map(stat=>`${stat==='money'?'money in dollars':prose(names[stat])} ${attributeFmt(stat)}`).join('. ');
-  if($('narration').textContent!==narration)$('narration').textContent=narration;
-}
-function redraw(focusAction){const result=drawGame();currentPixels=result.pixels;currentLayout=result.layout;paint(currentPixels);installControls(currentLayout,focusAction);}
-function resize(){animationId++;busy=false;const aw=document.documentElement.clientWidth,ah=innerHeight,landscape=aw>ah&&aw>600;width=Math.floor(Math.min(landscape?700:480,aw-(aw>540?24:0)));height=Math.floor(Math.max(360,Math.min(840,ah-(aw>540?24:0))));canvas.width=width;canvas.height=height;$('stack').style.width=`${width}px`;$('stack').style.height=`${height}px`;redraw();persist();}
-function animate(from,to,effect,duration,onFrame,isCurrent){if(prefs.reduceMotion||effect==='plain'){onFrame(to);return Promise.resolve();}const w=width,h=height;return new Promise(resolve=>{let start,previous=-Infinity;const output=new Uint32Array(to.length);const tick=now=>{if(!isCurrent()||w!==width||h!==height){resolve();return;}start??=now;const p=Math.min(1,(now-start)/duration);if(now-previous>=1000/30||p===1){onFrame(composeFrame(from,to,w,h,p,effect,output));previous=now;}if(p===1)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});}
-function effectFor(action){if(action==='next-line'||action==='continue'||action==='continue_interlude'||action==='close-scene')return 'dissolve';if(action.startsWith('intent:'))return 'plain';if(action==='back')return 'wipe right';if(action==='open-log'||action.startsWith('system:'))return 'push left';if(/feed/.test(action))return 'dissolve';if(/work|study|code|course|portfolio|model/.test(action))return 'venetian blinds';if(action==='wait')return 'checkerboard';return 'dissolve';}
-
-async function animateNumbers(changes,from,oldLayout,action,id){if(prefs.reduceMotion||!changes.length)return;const entries=changes.filter(c=>oldLayout.statTargets[c.stat]&&Math.abs(c.amount)>=.1).slice(0,8);if(!entries.length)return;const w=width,h=height,scratch=document.createElement('canvas');scratch.width=w;scratch.height=h;const ctx=scratch.getContext('2d',{willReadFrequently:true});await new Promise(resolve=>{let start;const tick=now=>{if(id!==animationId||w!==width||h!==height){resolve();return;}start??=now;const p=Math.min(1,(now-start)/440);paint(from,ctx,w,h);entries.forEach((c,i)=>{const source=oldLayout.buttons.find(b=>b.action===c.source)||oldLayout.buttons.find(b=>b.action===action),target=oldLayout.statTargets[c.stat];if(!source)return;let a={x:source.x+source.w/2-20,y:source.y+12+(i%2)*14},b=target;if(c.amount<0)[a,b]=[b,a];const q=p*p*(3-2*p),x=Math.round(a.x+(b.x-a.x)*q),y=Math.round(a.y+(b.y-a.y)*q),label=`${signed(c.amount)} ${shortNames[c.stat]}`;box(ctx,x-3,y-2,label.length*8+6,19);text(ctx,label,x,y,12,true);});paint(monochrome(ctx,w,h));if(p>=1)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});}
-function backPosition(){
-  if(screen==='scene'&&sceneSource==='intro'&&introRefusal&&sceneIndex===0){introRefusal=false;sceneIndex=sceneData().lines.length-1;return;}
-  if(screen==='scene'&&sceneIndex>0){sceneIndex--;return;}
-  if(screen==='scene'&&sceneSource==='intro'&&sceneIntroIndex>0){sceneIntroIndex--;sceneIndex=sceneData().lines.length-1;return;}
-  if(screen==='log'&&readPage>0){readPage--;return;}
-  if(screen==='system'&&systemPage>0){systemPage--;return;}
-  if(navigation.length)restorePosition(navigation.pop());else screen='main';
-}
-function enterOutcome(){navigation=[{...position(),screen:screen==='system'&&!state.crisis&&state.phase==='playing'?'system':'main'}];sceneSource='outcome';sceneIndex=0;screen='scene';}
-async function change(action){
-  if(busy)return;const from=currentPixels,oldLayout=currentLayout,id=++animationId;busy=true;$('controls').querySelectorAll('button').forEach(b=>b.disabled=true);let changes=[];
-  if(action==='next-line'){sceneIndex++;if(sceneSource==='intro'&&sceneData().kinds[sceneIndex]==='feeding')audio.feed();}
-  else if(action==='back')backPosition();
-  else if(action==='decline'){
-    if(sceneIntroIndex===state.introIndex){const refused=choose(state,'decline');if(!refused.ok){busy=false;redraw();return;}state=refused.state;changes=refused.changes||[];}
-    const returnToLine=INTRO[sceneIntroIndex].returnToLine;introRefusal=!Number.isInteger(returnToLine);sceneIndex=introRefusal?0:returnToLine;
-  }
-  else if(action==='close-scene'){if(navigation.length)restorePosition(navigation.pop());else screen='main';}
-  else if(action==='open-log'){pushScreen('log');logIndex=0;}
-  else if(action==='log-older'){logIndex++;readPage=0;}
-  else if(action==='log-newer'){logIndex--;readPage=0;}
-  else if(action==='read-next')readPage++;
-  else if(action==='read-previous')readPage--;
-  else if(action==='system-next')systemPage++;
-  else if(action==='system-previous')systemPage--;
-  else if(action==='system-details')pushScreen('system-detail');
-  else if(action==='progress')pushScreen('progress');
-  else if(action.startsWith('system:')){pushScreen('system');systemId=action.slice(7);systemPage=0;inspectVisibleSystem();}
-  else if(action==='read-ending'){pushScreen('scene');sceneSource='outcome';sceneIndex=0;}
-  else if(action==='continue'&&sceneIntroIndex<state.introIndex){sceneIntroIndex++;sceneIndex=0;introRefusal=false;if(sceneIntroIndex>=INTRO.length)screen='main';}
-  else{
-    const result=choose(state,action);if(!result.ok){busy=false;redraw(action);toast(result.error);return;}state=result.state;changes=result.changes;readPage=0;
-    const nextView=getView(state);
-    if(action==='continue'){sceneIndex=0;introRefusal=false;sceneIntroIndex=state.introIndex;screen=state.phase==='intro'?'scene':'main';if(state.phase!=='intro'&&nextView.interlude)enterOutcome();}
-    // The final intertitle can restore a character reaction that still needs reading.
-    else if(action==='continue_interlude'){if(nextView.interlude||nextView.presentation==='scene'||state.phase!=='playing')enterOutcome();else{screen='main';sceneIndex=readPage=0;navigation=[];}}
-    else if(action.startsWith('intent:')){screen='system';}
-    else if(nextView.interlude||result.outcome?.presentation==='scene'||state.phase!=='playing')enterOutcome();
-    else if(state.crisis){screen='main';navigation=[];}
-  }
-  persist();
-  try{
-    await animateNumbers(changes,from,oldLayout,action,id);if(id!==animationId)return;
-    const result=drawGame();currentLayout=result.layout;const newcomers=result.layout.revealedStats.filter(stat=>!oldLayout.revealedStats.includes(stat)&&result.layout.statRects[stat]);
-    let target=result.pixels;
-    if(newcomers.length&&!prefs.reduceMotion){target=result.pixels.slice();for(const stat of newcomers){const r=result.layout.statRects[stat];for(let y=r.y;y<r.y+r.h;y++)target.fill(0xffffffff,y*width+r.x,y*width+r.x+r.w);}}
-    const effect=prefs.transition==='authored'?effectFor(action):prefs.transition;
-    await animate(from,target,effect,SPEEDS[prefs.speed],p=>paint(p),()=>id===animationId);
-    for(const stat of newcomers){if(id!==animationId)return;const next=target.slice(),r=result.layout.statRects[stat];for(let y=r.y;y<r.y+r.h;y++)next.set(result.pixels.subarray(y*width+r.x,y*width+r.x+r.w),y*width+r.x);
-      await animate(target,next,'dissolve',700,p=>paint(p),()=>id===animationId);target=next;}
-    if(id===animationId){currentPixels=result.pixels;paint(currentPixels);}
-  }finally{if(id===animationId){busy=false;installControls(currentLayout);persist();}}
-}
-function effectRows(changes){const visible=changes?.filter(c=>names[c.stat]&&Math.abs(c.amount)>=.001&&(!attributes.includes(c.stat)||view.revealedStats.includes(c.stat)))||[];return visible.map(c=>`<div class="effect-row"><b>${esc(signed(c.amount))} ${esc(names[c.stat])}</b><small>${esc(c.label||'')}</small></div>`).join('');}
-function inspectOffer(id){if(busy)return;const offer=allOffers().find(o=>o.id===id);if(!offer)return;$('offer-title').textContent=offer.label;$('offer-description').textContent=prose(offer.description);const learnedChoice=view.revealedStats.includes('choice'),intention=offer.category==='intention'||id.startsWith('intent:'),choiceLocked=!offer.available&&offer.lockedReason.startsWith('Requires '),barrier=offer.available?'':choiceLocked?(learnedChoice?'':' You cannot make yourself do this yet.'):' '+offer.lockedReason;$('offer-requirement').textContent=intention?'No time passes. This changes what you look for in later opportunities.':`${fmt(offer.duration)} hours${learnedChoice?` · Requires ${offer.requirement} Choice`:''}.${barrier}`;
-  $('offer-effects').innerHTML=(learnedChoice&&offer.requirementHint?`<p>${esc(prose(offer.requirementHint))}</p>`:'')+(offer.uncertain?'<p>The outcome is uncertain.</p>':'')+(!intention&&offer.thorny&&view.revealedStats.includes('rapture')?'<p class="thorn-caption">This asks for some of your Rapture.</p>':'')+(!intention&&offer.blinking&&view.revealedStats.includes('rapture')?'<p>This is calling to you.</p>':'')+effectRows(offer.preview);$('offer-choose').textContent=intention?(offer.selected?'Keep this intention':'Set intention'):'Choose';$('offer-choose').disabled=!offer.available;$('offer-choose').onclick=()=>{$('offer-dialog').close();activate(id);};$('offer-dialog').showModal();}
-function explainAttribute(stat){if(!view.revealedStats.includes(stat))return;
-  $('attribute-title').textContent=`${prose(names[stat])} · ${attributeFmt(stat)}`;$('attribute-text').textContent=prose(attributeDescription(stat,state));$('attribute-dialog').showModal();}
-function activate(action){
-  if(busy)return;audio.unlock();
-  if(action==='settings'){document.querySelectorAll('[data-world]').forEach(button=>{button.disabled=!view.systems.find(system=>system.id===button.dataset.world)?.unlocked;});$('settings').showModal();return;}
-  if(action==='effects'){openEffects();return;}
-  if(action==='restart'){$('restart-dialog').showModal();return;}
-  if(action.startsWith('attribute:')){explainAttribute(action.slice(10));return;}
-  if(action.startsWith('system:')){const system=view.systems.find(s=>s.id===action.slice(7));if(!system?.unlocked){toast('Not yet. There is no system to tend.');return;}}
-  const offer=allOffers().find(o=>o.id===action);if(offer&&!offer.available){inspectOffer(action);return;}
-  audio.beep();if(action.includes('feed'))audio.feed();
-  change(action).catch(error=>{console.error(error);resize();toast('Unable to change this card. '+error.message);});
-}
-
-function drawIllustration(ctx, s, x, y, w, h) {
-  box(ctx, x, y, w, h);
-  const cx = x + w / 2;
-  if (s.location === 'outside') {
-    for (let i = 0; i < 5; i++) icon(ctx, i % 2 ? 'tree-small' : 'tree', cx - 104 + i * 43, y + h - 52 - (i % 2) * 8);
-    icon(ctx, 'sun', cx + 65, y + 7);
-  } else if (s.location === 'hole') {
-    icon(ctx, 'tree', x + 8, y + h - 44); icon(ctx, 'tree-small', x + w - 42, y + h - 42);
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(cx, y + h / 2 + 4, Math.min(75, w / 3), Math.min(29, h / 2 - 5), 0, 0, Math.PI * 2); ctx.fill();
-  } else if (s.location === 'home') {
-    icon(ctx, 'home', cx - 32, y + h / 2 - 32, 2); icon(ctx, 'tree-small', cx - 104, y + h - 42); icon(ctx, 'sun', cx + 68, y + 10);
+  quiet(c, out, '· ·', 14, 12, 44, 48, 'settings', UI.settings);
+  quiet(c, out, UI.skip, width - 146, 12, 132, 48, 'skip-intro');
+  if(page<pages-1){control(out,UI.next,1,70,width-2,height-164,'next');quiet(c,out,'→',width-72,height-78,56,56,'next',UI.next);if(page>0)quiet(c,out,'←',14,height-78,56,56,'scene-prev',UI.back);return;}
+  if (choices.length) {
+    actionPage=Math.min(actionPage,Math.ceil(choices.length/CHOICES_PER_PAGE)-1);
+    const shown=choices.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(shown.length,height-90);
+    shown.forEach((choice,i)=>{const {x,y}=grid.cell(i);button(c,out,choice.label,x,y,grid.w,grid.h,`choice:${choice.id}`,{available:!!choice.label.trim(),card:true});});
+    if(choices.length>CHOICES_PER_PAGE) quiet(c,out,'more choices →',width-174,height-72,158,48,'options-next');
+  } else if (node.begin) {
+    button(c, out, UI.begin, width - 184, height - 78, 162, 56, 'begin', { primary: true });
   } else {
-    for (let i = 0; i < 4; i++) icon(ctx, i % 2 ? 'food' : 'bread', cx - 84 + i * 44, y + h / 2 - 12);
-    line(ctx, x + 16, y + h - 18, x + w - 16, y + h - 17);
-    for (let i = 0; i < 3; i++) line(ctx, x + 24 + i * (w - 48) / 3, y + 10, x + 24 + i * (w - 48) / 3 + 34, y + 12);
+    control(out, UI.next, 1, 70, width - 2, height - 164, 'next');
+    quiet(c, out, '→', width - 72, height - 78, 56, 56, 'next', UI.next);
   }
+  if (page>0||state.trail.length) quiet(c, out, '←', 14, height - 78, 56, 56, page>0?'scene-prev':'back', UI.back);
 }
-
-function demoCard(alternate){const c=document.createElement('canvas');c.width=288;c.height=152;const ctx=c.getContext('2d',{willReadFrequently:true});box(ctx,0,0,288,152);text(ctx,alternate?'THE HOLE':'OUTSIDE',144,10,14,true,'center');drawIllustration(ctx,{location:alternate?'hole':'outside'},8,34,272,106);return monochrome(ctx,288,152);}
-let demoAlternate=false;
-function openEffects(){$('effects-dialog').showModal();paint(demoCard(demoAlternate),$('effect-preview').getContext('2d'),288,152);}
-async function playDemo(){const id=++demoId,effect=$('demo-effect').value,target=$('demo-target').value,ctx=$('effect-preview').getContext('2d'),from=demoCard(demoAlternate),to=makeTarget(from,demoCard(!demoAlternate),288,target);$('play-effect').disabled=$('next-effect').disabled=true;$('demo-status').textContent=`${titleCase(effect)} · ${$('demo-speed').value} · to ${target}`;audio.unlock();audio.beep();const duration=SPEEDS[$('demo-speed').value],output=new Uint32Array(from.length);let start;
-  await new Promise(resolve=>{const tick=now=>{if(demoId!==id||!$('effects-dialog').open){resolve();return;}start??=now;const p=prefs.reduceMotion?1:Math.min(1,(now-start)/duration);paint(composeFrame(from,to,288,152,p,effect,output),ctx,288,152);if(p>=1)resolve();else requestAnimationFrame(tick);};requestAnimationFrame(tick);});if(demoId===id){demoAlternate=!demoAlternate;$('play-effect').disabled=$('next-effect').disabled=false;}}
-function setupDialogs(){
-  for(const effect of EFFECTS){$('demo-effect').add(new Option(titleCase(effect),effect));if(effect!=='flash')$('transition').add(new Option(titleCase(effect),effect));}
-  $('demo-effect').value='dissolve';for(const speed of Object.keys(SPEEDS)){$('speed').add(new Option(titleCase(speed),speed));$('demo-speed').add(new Option(titleCase(speed),speed));}for(const target of TARGETS)$('demo-target').add(new Option(titleCase(target),target));
-  $('sound').checked=prefs.sound;$('motion').checked=prefs.reduceMotion;$('large-text').checked=prefs.largeText;$('transition').value=prefs.transition;$('speed').value=$('demo-speed').value=prefs.speed;
-  $('sound').onchange=e=>{prefs.sound=e.target.checked;audio.enabled=prefs.sound;if(!prefs.sound)audio.stop();else audio.unlock();savePrefs();};
-  $('motion').onchange=e=>{prefs.reduceMotion=e.target.checked;savePrefs();redraw();};$('large-text').onchange=e=>{prefs.largeText=e.target.checked;readPage=0;savePrefs();redraw();};
-  $('transition').onchange=e=>{prefs.transition=e.target.value;savePrefs();};$('speed').onchange=e=>{prefs.speed=e.target.value;$('demo-speed').value=prefs.speed;savePrefs();};
-  $('show-effects').onclick=openEffects;
-  $('show-guide').onclick=()=>{$('learned-guide').innerHTML=view.revealedStats.map(stat=>`<p><b>${names[stat]}</b> is now visible. Tap it at the top of the screen to learn what it means.</p>`).join('')+(state.phase==='playing'?'<p>Hold a decision to read it before choosing. Thorns mark a sacrifice of Rapture. Small flashes mark something appealing.</p><p>The three icons open parts of your life. Look around or set an intention for later. A faded icon is not available yet.</p>':'');$('guide').showModal();};
-  document.querySelectorAll('[data-world]').forEach(button=>{button.onclick=()=>{$('settings').close();activate('system:'+button.dataset.world);};});
-  $('show-progress').onclick=()=>{$('settings').close();activate('progress');};
-  $('play-effect').onclick=playDemo;$('next-effect').onclick=()=>{$('demo-effect').selectedIndex=($('demo-effect').selectedIndex+1)%EFFECTS.length;playDemo();};$('effects-dialog').addEventListener('close',()=>{demoId++;$('play-effect').disabled=$('next-effect').disabled=false;});
-  document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('dialog').close());$('restart').onclick=()=>$('restart-dialog').showModal();
-  $('confirm-restart').onclick=()=>{animationId++;busy=false;state=createGame();choiceShown=false;introRefusal=false;screen='scene';sceneSource='intro';sceneIndex=sceneIntroIndex=logIndex=readPage=systemPage=0;navigation=[];persist();document.querySelectorAll('dialog[open]').forEach(d=>d.close());redraw();};
-  window.alignmentBack=()=>{const open=[...document.querySelectorAll('dialog[open]')].at(-1);if(open){open.close();return true;}if(busy){animationId++;busy=false;redraw();persist();return true;}if(screen==='main'||(screen==='scene'&&sceneSource==='intro'&&sceneIntroIndex===0&&sceneIndex===0&&!introRefusal))return false;activate('back');return true;};
-  addEventListener('keydown',event=>{if(!document.querySelector('dialog[open]')&&screen==='scene'&&currentLayout.scene?.kind==='prompt'&&['y','n'].includes(event.key.toLowerCase())){event.preventDefault();activate(event.key.toLowerCase()==='y'?'continue':'decline');return;}if(event.key==='Escape'&&!document.querySelector('dialog[open]')&&window.alignmentBack())event.preventDefault();if(!document.querySelector('dialog[open]')&&screen==='scene'&&(event.key==='ArrowRight'||event.key===' ')){event.preventDefault();const next=currentLayout.buttons.find(b=>['next-line','continue','continue_interlude','close-scene','sleep','begin_stage2'].includes(b.action));if(next)activate(next.action);}if(event.key==='ArrowLeft'&&!document.querySelector('dialog[open]')){event.preventDefault();window.alignmentBack();}});
+function main(c, out) {
+  header(c, out);
+  const entry=logEntries(state).at(-1)||{id:null,changes:[]};
+  const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS)].filter(Boolean).join('\n');
+  const allRows=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null),prose=allRows.filter(row=>!row.tokens),rows=prose.slice(0,3);
+  if(prose.length>3)rows[2]={...rows[2],text:rows[2].text+'…'};
+  rows.push(...allRows.filter(row=>row.tokens));
+  const logBottom=logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
+  const allActions = visibleActions(state), pages = Math.max(1,Math.ceil(allActions.length/CHOICES_PER_PAGE));
+  actionPage = Math.min(actionPage,pages-1);
+  const actions = allActions.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(actions.length,height-94);
+  const enabled = new Set(availableActions(state).map(action => action.id));
+  actions.forEach((action, i) => {
+    const {x,y}=grid.cell(i);button(c, out, action.label, x,y,grid.w,grid.h,action.id, { available: enabled.has(action.id),textLayout:TEXT_LAYOUTS.actions?.[action.id]||{},card:true });
+    // The authored vine artwork will use this same computed loss as the warnings.
+    out.buttons.at(-1).raptureCost=raptureCost(state,action);
+  });
+  if(pages>1){quiet(c,out,'←',18,height-66,48,48,'options-prev');quiet(c,out,`${actionPage+1} / ${pages} →`,width-132,height-66,114,48,'options-next');}
+  out.text = [dateBar(),log].filter(Boolean).join('\n');
 }
-try{
-  const savedGame=storage.getItem(SAVE_KEY);
-  let savedVersion;try{savedVersion=JSON.parse(savedGame)?.version;const backupKey=savedVersion===1?MIGRATION_BACKUP_KEY:savedVersion===2?RHYTHM_BACKUP_KEY:null;if(backupKey&&storage.getItem(backupKey)===null)migrationBackupPending={key:backupKey,raw:savedGame};}catch{}
-  state=restoreGame(savedGame)||createGame();screen=state.phase==='intro'?'scene':'main';sceneSource='intro';sceneIntroIndex=state.introIndex;
-  try{const ui=JSON.parse(storage.getItem(UI_KEY));const validPosition=p=>p&&['main','scene','log','system','system-detail','progress'].includes(p.screen)&&['intro','outcome','entry'].includes(p.sceneSource)&&['local','fintech','social'].includes(p.systemId)&&['sceneIndex','sceneIntroIndex','logIndex','readPage','systemPage'].every(k=>Number.isInteger(p[k])&&p[k]>=0&&p[k]<10000);
-    if(ui&&ui.seed===state.seed&&ui.turn===state.turn&&ui.phase===state.phase&&ui.introIndex===state.introIndex&&validPosition(ui)&&!(savedVersion<3&&getView(state).interlude)){restorePosition(ui);choiceShown=ui.choiceShown===true;navigation=Array.isArray(ui.navigation)?ui.navigation.filter(validPosition).slice(-12):[];}
-  }catch{}
-  const assetNames=['tree','tree-small','sun','home','food','bread','computer','book','coin','tools','people','town','heart','compass','friend','coffee','briefcase','chart'];
-  const loadImage=(target,name,src)=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{target[name]=img;resolve();};img.onerror=()=>reject(Error('Missing image: '+src));img.src=src;});
-  await Promise.all(assetNames.map(name=>loadImage(icons,name,'icons/'+name+'.png')));
-  setupDialogs();savePrefs();resize();$('boot').remove();addEventListener('resize',resize);
-  const pause=()=>{persist();audio.stop();if(busy){animationId++;busy=false;redraw();}};
-  addEventListener('pagehide',pause);addEventListener('alignmentpause',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
-  setInterval(()=>{if(!busy&&!document.hidden&&!prefs.reduceMotion&&screen!=='scene'&&state.phase==='playing'&&!document.querySelector('dialog[open]')){pulse=!pulse;const result=drawGame();currentPixels=result.pixels;paint(currentPixels);}},750);
-  window.alignmentSnapshot=()=>({state:JSON.parse(JSON.stringify(state)),view:{...getView(state),revealedStats:[...view.revealedStats]},calendar:view.calendar,rhythm:view.rhythm||null,resets:view.resets??state.resets??0,interlude:view.interlude===true,screen,scene:currentLayout.scene,storyEvent:currentLayout.storyEvent||null,art:currentLayout.art||null,systemId,systemPage,logIndex,page:currentLayout.page,pageCount:currentLayout.pageCount,tab:screen==='main'?'decisions':screen,busy,renderer:'original-hypercard-canvas',effects:EFFECTS.length,revealedStats:[...view.revealedStats],saveFailed,width,height,controls:currentLayout.buttons.map(b=>({action:b.action,label:b.label,available:b.available,selected:b.selected,thorny:b.thorny,appealing:b.appealing,x:b.x,y:b.y,w:b.w,h:b.h})),currentTransition:prefs.transition});
-}catch(error){$('boot').textContent='Unable to open the stack. '+error.message;console.error(error);}
+function draw() {
+  const c = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  c.canvas.width = width; c.canvas.height = height; box(c, 0, 0, width, height);
+  const out = { buttons: [], cards: [], text: '', scene: null };
+  if (editorPreview) {
+    const {type,id}=editorPreview;
+    if(type==='intro') scene(c,out,{...(INTRO.find(n=>n.id===id)||INTRO[0])});
+    else if(type==='actions') {const action=ACTIONS.find(a=>a.id===id),grid=choiceGrid(1),{x,y}=grid.cell(0);header(c,out);button(c,out,action?.label||'',x,y,grid.w,grid.h,id,{textLayout:TEXT_LAYOUTS.actions?.[id]||{},card:true});out.text=action?.label||'';}
+    else if(type==='logs')notebook(c,out,[{id,changes:[]}]);
+    else scene(c,out,{id,...(type==='messages'?MESSAGE_LINKS[id]:{}),text:({messages:MESSAGES,logs:LOGS,ui:UI,statLabels:STAT_LABELS}[type]||{})[id]||''},false);
+    out.buttons=[];
+  }
+  else if (state.phase === 'intro') scene(c, out, currentNode(state));
+  else if (currentWarning(state)) scene(c,out,currentWarning(state),false);
+  else if (state.message) scene(c, out, { id: state.message,...MESSAGE_LINKS[state.message], text: MESSAGES[state.message] }, false);
+  else if (screen === 'log') notebook(c,out);
+  else main(c, out);
+  return { pixels: tintHungerNumber(monochrome(c,width,height),width,height,out.hungerNumber), layout: out };
+}
+function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
+function installControls() {
+  $('controls').replaceChildren();
+  for (const b of layout.buttons) {
+    const el = document.createElement('button'); el.textContent = b.label; el.setAttribute('aria-label', b.label);
+    el.dataset.action = b.action; el.disabled = !b.available;
+    if(b.raptureCost!==undefined){el.dataset.raptureCost=String(b.raptureCost);el.dataset.undesirable=String(b.raptureCost>0);}
+    Object.assign(el.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
+    el.onclick = () => activate(b.action); $('controls').append(el);
+  }
+  $('narration').textContent = [layout.text, ...presentedStats(state,HUNGER_INDICATOR).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
+}
+function redraw() {
+  $('settings-title').textContent=UI.settings;$('restart').textContent=UI.restart;
+  $('settings').querySelector('form button').textContent=UI.return;
+  $('sound').parentElement.lastChild.textContent=' '+UI.sound;$('motion').parentElement.lastChild.textContent=' '+UI.motion;
+  const frame = draw(); pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls();
+}
+function resize() {
+  stopStatCue();
+  animationId++; busy = false;
+  lastViewportWidth=document.documentElement.clientWidth;
+  ({width,height}=phoneScreen(lastViewportWidth,window.visualViewport?.height||innerHeight));
+  canvas.width=width;canvas.height=height;
+  $('stack').style.width = `${width}px`; $('stack').style.height = `${height}px`; redraw();
+}
+function drawSelectionHand(c,card) {
+  if(!icons.hand)return;
+  const w=Math.min(icons.hand.width,card.w*.65),h=w*icons.hand.height/icons.hand.width;
+  const x=Math.max(8,Math.min(width-w-8,card.x+card.w-w*.75));
+  const y=Math.max(178,Math.min(height-h-12,card.y+card.h-h*.4));
+  c.imageSmoothingEnabled=false;
+  c.drawImage(icons.hand,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
+}
+async function dissolve(from, to, id, selectedCard) {
+  if (prefs.reduceMotion && !selectedCard) { paint(to); return; }
+  const w = width, h = height, buffer = new Uint32Array(to.length);
+  await new Promise(resolve => {
+    let start;
+    const tick = now => {
+      if (id !== animationId || w !== width || h !== height) { resolve(); return; }
+      start ??= now; const progress = Math.min(1, (now - start) / 260);
+      paint(prefs.reduceMotion ? to : composeFrame(from, to, w, h, progress, 'dissolve', buffer));
+      if(selectedCard&&now-start<160)drawSelectionHand(ctx,selectedCard);
+      if (progress === 1) resolve(); else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+async function activate(action) {
+  if (busy) return;
+  if(editorPreview)return;
+  if(action==='scene-prev'){textPage=Math.max(0,textPage-1);redraw();return;}
+  if(['next','dismiss-message'].includes(action)&&layout.scene&&layout.scene.page<layout.scene.pages-1){textPage++;redraw();return;}
+  if(action==='log-next'||action==='log-prev'){logPage=(logPage+(action==='log-next'?1:-1)+(layout.logPages||1))%(layout.logPages||1);redraw();return;}
+  if(action==='options-next'||action==='options-prev') {
+    const count=state.phase==='intro'?cardChoices(currentNode(state)).length:visibleActions(state).length;
+    actionPage=(actionPage+(action==='options-next'?1:-1)+Math.ceil(count/CHOICES_PER_PAGE))%Math.max(1,Math.ceil(count/CHOICES_PER_PAGE));redraw();return;
+  }
+  if (action === 'settings') { $('settings').showModal(); return; }
+  const selectedCard=layout.cards?.find(card=>card.action===action);
+  const from = pixels, id = ++animationId;
+  stopStatCue();
+  if (action === 'close-log') screen = 'main';
+  else { const next = choose(state, action); if (next === state) return;
+    startAttributeFeedback(state,next);
+    const warningStep=!!next.hesitation||!!state.hesitation&&next.events.length===state.events.length;
+    state = next; screen = 'main'; if(!warningStep)actionPage=0;textPage=0;
+  }
+  // Persist the committed choice before the animation, including refusal/reading position.
+  save(); busy = true; $('controls').replaceChildren(); audio.unlock();
+  if (state.phase === 'intro' && currentNode(state).kind === 'feeding') audio.feed();
+  const frame = draw();
+  try { await dissolve(from, frame.pixels, id, selectedCard); }
+  finally { if (id === animationId) { busy = false; pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls(); } }
+}
+function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
+function restart() {
+  stopStatCue();
+  animationId++; busy = false; audio.stop();
+  // A reversible restart retains the previous authored playthrough too.
+  try { if(!testBackup)storage.setItem(`${SAVE_KEY}.before-restart`, serializeGame(state)); } catch {}
+  state = createGame(); screen = 'main';actionPage=0;textPage=0;logPage=0; save(); $('settings').close(); redraw();
+}
+try {
+  state = restoreGame(storage.getItem(SAVE_KEY)) || createGame();
+  audio.prepare();
+  await Promise.all([...new Set(['home',...Object.values(STAT_ICONS)])].map(name => new Promise((resolve, reject) => {
+    const image = new Image(); image.onload = () => { icons[name] = image; resolve(); };
+    image.onerror = () => reject(Error(`Missing icon: ${name}`)); image.src = `icons/${name}.png`;
+  })));
+  $('sound').checked = false; $('sound').disabled=true; $('sound').parentElement.hidden=true;
+  $('motion').checked = prefs.reduceMotion;
+  $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
+  $('restart').onclick = restart;
+  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/selection-hand.svg';});
+  resize(); save(); $('boot').remove(); addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('resize',resize);
+  new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);
+  addEventListener('pagehide', pause); addEventListener('alignmentpause', pause);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+  window.alignmentBack = () => {
+    if ($('settings').open) { $('settings').close(); return true; }
+    if(editorPreview)return false;
+    if(textPage>0){textPage--;redraw();return true;}
+    if (busy) { animationId++; busy = false; redraw(); return true; }
+    if (screen === 'log') { activate('close-log'); return true; }
+    if (state.message||currentWarning(state)) { activate('dismiss-message'); return true; }
+    if (state.phase === 'intro' && state.trail.length) { activate('back'); return true; }
+    return false;
+  };
+  addEventListener('keydown', event => {
+    if ($('settings').open || editorPreview || event.target.closest('input,textarea,select,[contenteditable],#editor-panel') || event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+    if (event.key === 'Escape' || event.key === 'ArrowLeft') { if (window.alignmentBack()) event.preventDefault(); return; }
+    if ((state.message||currentWarning(state)) && !busy && (event.key === 'ArrowRight' ||
+        ([' ', 'Enter'].includes(event.key) && document.activeElement.tagName !== 'BUTTON'))) {
+      event.preventDefault(); activate('dismiss-message'); return;
+    }
+    if (state.phase !== 'intro' || busy) return;
+    const node = currentNode(state);
+    if (node.yes && ['y', 'n'].includes(event.key.toLowerCase())) { event.preventDefault(); activate(event.key.toLowerCase() === 'y' ? 'yes' : 'no'); }
+    else if (event.key === 'ArrowRight' || (event.key === ' ' && document.activeElement.tagName !== 'BUTTON')) {
+      if (!node.yes) { event.preventDefault(); activate(node.begin ? 'begin' : 'next'); }
+    }
+  });
+  window.alignmentSnapshot = () => ({ state: structuredClone(state), screen: state.phase === 'intro' || state.message || currentWarning(state) ? 'scene' : screen,
+    scene: layout.scene, busy, renderer: 'original-hypercard-canvas', content: 'human-authored', width, height,
+    fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
+    controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
+  if(['127.0.0.1','localhost'].includes(location.hostname)) {
+    const {mountEditor}=await import('./editor-client.mjs');
+    editor=await mountEditor({
+      current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:{type:'logs',id:state.logs.at(-1)||'opening'}),
+      apply:(doc,{temporary=false}={})=>{stopStatCue();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},
+      preview:selection=>{stopStatCue();if(testBackup){state=testBackup.state;screen=testBackup.screen;testBackup=null;}editorPreview=selection;textPage=0;animationId++;busy=false;resize();},
+      play:()=>{stopStatCue();if(testBackup){state=testBackup.state;screen=testBackup.screen;testBackup=null;}editorPreview=null;resize();},
+      test:selection=>{
+        stopStatCue();
+        if(!testBackup)testBackup={state:structuredClone(state),screen};
+        editorPreview=null;state=createGame();screen='main';textPage=0;actionPage=0;
+        if(selection.type==='intro')state.node=selection.id;
+        else {
+          state=choose(state,'skip-intro');
+          const target=selection.type==='actions'?ACTIONS.find(a=>a.id===selection.id):ACTIONS.find(a=>a.message===selection.id||a.firstGainMessage===selection.id);
+          const visit=(a,seen=new Set())=>{if(!a||seen.has(a.id))return;seen.add(a.id);if(a.requires)visit(ACTIONS.find(x=>x.id===a.requires),seen);
+            for(let i=0;i<3&&!state.completed.includes(a.id);i++){state=choose(state,a.id);while(state.message||currentWarning(state))state=choose(state,'dismiss-message');}
+          };
+          if(target?.requires)visit(ACTIONS.find(a=>a.id===target.requires));
+          if(selection.type==='messages')state=previewIntertitle(selection.id);
+          if(selection.type==='actions')actionPage=Math.max(0,Math.floor(visibleActions(state).findIndex(a=>a.id===selection.id)/CHOICES_PER_PAGE));
+        }
+        resize();
+      },resize,choiceImage
+    });
+  }
+} catch (error) { $('boot').textContent = 'Unable to open the stack. ' + error.message; console.error(error); }

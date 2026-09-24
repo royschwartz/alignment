@@ -1,0 +1,1 @@
+selection-hand.svg is original vector artwork created for this project by Codex on September 24, 2026. It is a simple outlined hand constructed from paths, with no external image or traced source. The previous WetPaint candidate remains in local research and is not included in the release.

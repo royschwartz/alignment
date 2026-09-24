@@ -1,0 +1,69 @@
+/* Writing palettes echo the game's monochrome HyperCard furniture. */
+[hidden] { display:none !important; }
+.has-editor #desktop { display:grid; grid-template-columns:minmax(100px,1fr) auto minmax(100px,1fr); gap:16px; }
+.editor-rail { width:104px; align-self:center; display:flex; flex-direction:column; gap:10px; }
+.editor-rail:first-child { justify-self:end; }
+.editor-rail button { width:100%; padding:12px 6px; font-weight:bold; box-shadow:3px 3px #000; }
+.palette-title { border:1px solid #000; background:repeating-linear-gradient(#fff 0 3px,#000 3px 4px); text-align:center; }
+.palette-title span,.editor-rail .palette-title { background-color:#fff; }
+.editor-rail .palette-title { background:#fff; padding:8px 0; font-size:11px; }
+.rail-note { white-space:pre-line; background:white; border:1px solid; padding:10px; font-size:10px; line-height:1.7; }
+.editor-open #desktop { grid-template-columns:minmax(104px,1fr) auto minmax(316px,1fr); }
+#editor-panel { width:316px; height:calc(100dvh - 32px); max-height:960px; background:#fff; border:3px double #000; box-shadow:5px 5px #000; align-self:center; display:flex; flex-direction:column; overflow:hidden; }
+#editor-panel > header { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; min-height:35px; border-width:0 0 1px; }
+#editor-panel > header span { padding:4px 9px; margin-left:10px; letter-spacing:1px; font-size:11px; }
+#editor-panel > header button { min-height:25px; padding:1px 7px; margin:3px; box-shadow:none; }
+.writer-save { display:flex; align-items:center; justify-content:space-between; padding:9px; font-size:10px; gap:6px; }
+.writer-save button { min-height:28px; padding:4px 6px; box-shadow:none; flex-shrink:0; font-size:10px; }
+.save-problem { font-weight:bold; }
+.writer-tabs { display:flex; gap:4px; padding:0 8px 8px; border-bottom:1px solid; }
+.writer-tabs button { min-height:32px; padding:4px 6px; box-shadow:none; flex:1; font-size:11px; }
+.writer-tabs button[aria-pressed=true] { background:#000; color:#fff; }
+#writer-body { padding:12px; overflow:auto; flex:1; min-height:0; overscroll-behavior:contain; }
+#writer-body h2 { margin:8px 0 16px; font-size:16px; font-weight:normal; }
+.writer-field { display:flex; flex-direction:column; gap:7px; margin:14px 0; font-size:11px; }
+#editor-panel input:not([type=checkbox]),#editor-panel select,#editor-panel textarea { width:100%; min-width:0; padding:9px; border:1px solid #000; border-radius:0; font:13px/1.55 monospace; color:#000; background:#fff; }
+#editor-panel textarea { resize:vertical; min-height:104px; tab-size:2; }
+#editor-panel textarea:focus,#editor-panel select:focus { outline:3px double #000; outline-offset:2px; }
+#editor-panel select { font-size:11px; }
+#editor-panel input[type=checkbox] { width:17px; height:17px; margin:0 7px 0 0; }
+.writer-check { display:flex; align-items:center; margin:12px 0; font-size:11px; }
+.writer-row,.writer-nav { display:flex; gap:14px; align-items:center; justify-content:space-between; }
+.writer-nav { font-size:10px; margin-bottom:16px; }
+.writer-nav button { min-height:28px; padding:5px 10px; box-shadow:none; }
+#writer-body > button,.writer-footer button { margin:5px 0; width:100%; font-size:11px; min-height:38px; padding:8px; }
+.writer-list { margin:12px 0; }
+.writer-card { display:block; text-align:left; width:100%; margin:7px 0; min-height:40px; padding:10px; box-shadow:1px 1px #000; font-size:11px; line-height:1.45; overflow-wrap:anywhere; }
+.writer-card small,.writer-card span { display:block; }
+.writer-card small { font-size:9px; margin-bottom:5px; font-weight:normal; }
+.writer-create,.writer-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin:12px 0; }
+.writer-create button,.writer-actions button { min-height:38px; padding:7px; font-size:10px; box-shadow:1px 1px #000; }
+.writer-links { margin-top:18px; padding-top:12px; border-top:1px solid; }
+.writer-links h3 { font-size:11px; margin-top:24px; }
+.writer-download { display:block; color:#000; border:1px solid; padding:10px; margin:12px 0; font-size:11px; line-height:1.6; }
+.writer-choice { border:1px solid; padding:9px; margin:12px 0; }
+.writer-choice button { min-height:28px; padding:5px; box-shadow:none; font-size:10px; }
+.writer-help { font-size:11px; line-height:1.6; }
+.writer-position-axis { display:grid; grid-template-columns:minmax(0,1fr) 76px; gap:10px; align-items:center; }
+#editor-panel input[type=range] { padding:0; accent-color:#000; cursor:ew-resize; }
+.writer-nudge { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.writer-nudge button { padding:6px; min-height:36px; box-shadow:1px 1px #000; }
+.writer-placement-reset { width:100%; margin-top:12px; padding:8px; min-height:36px; font-size:11px; }
+.writer-footer { margin-top:18px; padding-top:12px; border-top:1px solid; }
+#editor-panel details { border-top:1px solid; margin-top:18px; padding-top:14px; }
+#editor-panel summary { cursor:pointer; font-size:11px; }
+#editor-test-bar { position:fixed; top:12px; left:12px; background:white; border:3px double; padding:6px 12px; z-index:30; white-space:nowrap; font-size:11px; box-shadow:3px 3px #000; }
+#editor-test-bar button { min-height:32px; padding:6px; margin-left:12px; font-size:11px; }
+@media(max-width:959px) {
+  .editor-open #desktop { grid-template-columns:minmax(100px,1fr) auto minmax(100px,1fr); }
+  #editor-panel { position:fixed; z-index:40; right:12px; top:12px; height:calc(100dvh - 24px); width:min(360px,calc(100vw - 24px)); }
+}
+@media(max-width:759px) {
+  .editor-testing .editor-rail { display:none; }
+  #editor-test-bar { top:5px; left:6px; }
+  .has-editor #desktop,.editor-open #desktop { display:flex; flex-direction:column; align-items:center; padding-top:0; padding-bottom:0; }
+  .editor-rail { position:static; order:1; width:auto; flex-direction:row; gap:5px; }
+  .editor-rail button { min-height:38px; width:auto; font-size:10px; padding:7px; }
+  .editor-rail .palette-title,.rail-note { display:none; }
+  #editor-tools { left:auto; right:6px; }
+}
