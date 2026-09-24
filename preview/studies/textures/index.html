@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>Alignment · 10 card textures</title>
+ <link rel="stylesheet" href="style.css">
+</head>
+<body>
+ <main>
+  <header><p class="eyebrow">ALIGNMENT / CARD TEXTURES</p><h1>Ten ways to break up the ink.</h1><p>Solid blacks, white centers, dithered edges. Click any card for a closer look.</p></header>
+  <nav aria-label="Study tools"><span>All cards shown at actual size</span><a href="contact-sheet.png" download>Save all ten</a></nav>
+  <section id="options" aria-label="Ten card texture options"></section>
+  <footer>Choose by number. These are visual options for the current card format.</footer>
+ </main>
+ <dialog id="detail" aria-labelledby="detail-title">
+  <div class="dialog-top"><h2 id="detail-title"></h2><button id="close" aria-label="Close enlarged card">Close ×</button></div>
+  <p id="description"></p>
+  <div class="inspection"><img id="large" width="170" height="238" alt="Enlarged card texture"><div class="native"><img id="native" width="170" height="238" alt="Card at actual size"><span>Actual size</span></div></div>
+  <div class="dialog-bottom"><button id="previous">← Previous</button><a id="download" download>Save this card</a><button id="next">Next →</button></div>
+ </dialog>
+ <script type="module" src="study.mjs"></script>
+</body>
+</html>
