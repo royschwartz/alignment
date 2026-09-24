@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.4.1",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,11 +16,12 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 15,
+  "versionCode": 16,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
     "height": 960
   },
-  "choiceAspectRatio": "182:252"
+  "choiceAspectRatio": "182:252",
+  "selectionHoldMs": 650
 }

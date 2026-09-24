@@ -1,3 +1,4 @@
+import {holdSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
 import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs';
 import { cardChoices } from './author-schema.mjs';
@@ -26,8 +27,8 @@ audio.enabled = prefs.sound;
 let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
 const statCues=new Map();let statCueTimer=null;
 function stopStatCue(){clearInterval(statCueTimer);statCueTimer=null;statCues.clear();audio.cancelCues();}
-function startAttributeFeedback(before,after){
-  const now=performance.now(),feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
+function startAttributeFeedback(before,after,delay=0){
+  const now=performance.now()+delay,feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
   audio.unlock();
   feedback.forEach((change,index)=>{
     const revealDelay=currentWarning(after)?.revealsRapture?900:260;
@@ -285,16 +286,8 @@ function resize() {
   canvas.width=width;canvas.height=height;
   $('stack').style.width = `${width}px`; $('stack').style.height = `${height}px`; redraw();
 }
-function drawSelectionHand(c,card) {
-  if(!icons.hand)return;
-  const w=Math.min(icons.hand.width,card.w*.65),h=w*icons.hand.height/icons.hand.width;
-  const x=Math.max(8,Math.min(width-w-8,card.x+card.w-w*.75));
-  const y=Math.max(178,Math.min(height-h-12,card.y+card.h-h*.4));
-  c.imageSmoothingEnabled=false;
-  c.drawImage(icons.hand,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
-}
-async function dissolve(from, to, id, selectedCard) {
-  if (prefs.reduceMotion && !selectedCard) { paint(to); return; }
+async function dissolve(from, to, id) {
+  if (prefs.reduceMotion) { paint(to); return; }
   const w = width, h = height, buffer = new Uint32Array(to.length);
   await new Promise(resolve => {
     let start;
@@ -302,7 +295,6 @@ async function dissolve(from, to, id, selectedCard) {
       if (id !== animationId || w !== width || h !== height) { resolve(); return; }
       start ??= now; const progress = Math.min(1, (now - start) / 260);
       paint(prefs.reduceMotion ? to : composeFrame(from, to, w, h, progress, 'dissolve', buffer));
-      if(selectedCard&&now-start<160)drawSelectionHand(ctx,selectedCard);
       if (progress === 1) resolve(); else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -324,7 +316,7 @@ async function activate(action) {
   stopStatCue();
   if (action === 'close-log') screen = 'main';
   else { const next = choose(state, action); if (next === state) return;
-    startAttributeFeedback(state,next);
+    startAttributeFeedback(state,next,selectedCard?SELECTION_HOLD_MS:0);
     const warningStep=!!next.hesitation||!!state.hesitation&&next.events.length===state.events.length;
     state = next; screen = 'main'; if(!warningStep)actionPage=0;textPage=0;
   }
@@ -332,7 +324,10 @@ async function activate(action) {
   save(); busy = true; $('controls').replaceChildren(); audio.unlock();
   if (state.phase === 'intro' && currentNode(state).kind === 'feeding') audio.feed();
   const frame = draw();
-  try { await dissolve(from, frame.pixels, id, selectedCard); }
+  try {
+    await holdSelectionHand({paint,from,context:ctx,image:icons.hand,card:selectedCard,width,height,isCurrent:()=>id===animationId});
+    if(id===animationId)await dissolve(from,frame.pixels,id);
+  }
   finally { if (id === animationId) { busy = false; pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls(); } }
 }
 function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
@@ -354,7 +349,7 @@ try {
   $('motion').checked = prefs.reduceMotion;
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
-  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/selection-hand.svg';});
+  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/check-hand.png';});
   resize(); save(); $('boot').remove(); addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize',resize);
   new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);

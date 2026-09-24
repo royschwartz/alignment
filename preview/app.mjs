@@ -1,3 +1,4 @@
+import {holdSelectionHand} from './selection-hand.mjs';
 import {phoneScreen} from './phone-screen.mjs';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
 import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs';
@@ -233,14 +234,7 @@ function handGeometry() {
   return {...grid,slots:Object.fromEntries(dealt.cards.map((card,i)=>[card.slot,grid.cell(i)]))};
 }
 // Roy, September 24: the hand appears only as brief card-selection feedback.
-const HAND_FLASH_MS=160;
-function drawSelectionHand(c,card) {
-  if(!icons.hand)return;
-  const w=Math.min(icons.hand.width,card.w*.65),h=w*icons.hand.height/icons.hand.width;
-  const x=Math.max(8,Math.min(width-w-8,card.x+card.w-w*.75));
-  const y=Math.max(178,Math.min(height-h-12,card.y+card.h-h*.4));
-  c.imageSmoothingEnabled=false;c.drawImage(icons.hand,Math.round(x),Math.round(y),Math.round(w),Math.round(h));
-}
+
 const heartAnchor=()=>({x:headerStatX('rapture',width),y:143});
 function placement(card) {return {x:card.x,y:card.y,k:1};}
 function drawDealt(c,card,size,now) {
@@ -430,12 +424,12 @@ async function activate(action) {
   heldStats=presentedStats(state,HUNGER_INDICATOR).map(([stat,value])=>[stat,feedback.find(f=>f.stat===stat)?.from??value]);
   const held=draw().pixels;heldStats=null;
   const selectedCard=previousLayout.cards.find(card=>card.action===action);
-  const transitionDuration=prefs.reduceMotion?180:FORMAT_MS;
   try {
+    await holdSelectionHand({paint,from,context:ctx,image:icons.hand,card:selectedCard,width,height,isCurrent:()=>id===animationId});
+    if(id!==animationId)return;
     if(cardsChanged||feedback.length){
       await playFormat(new CardTransition({from,to:frame.pixels,held,width,height,
-        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,
-        overlay:selectedCard?(c,p)=>{if(p*transitionDuration<HAND_FLASH_MS)drawSelectionHand(c,selectedCard);}:null}),id);
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion}),id);
     }else await dissolve(from,frame.pixels,id);
   }finally {
     if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
@@ -504,7 +498,7 @@ try {
   $('motion').checked = prefs.reduceMotion;
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
-  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/selection-hand.svg';});
+  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/check-hand.png';});
   resize(); save(); $('boot').remove(); addEventListener('resize', resize);
   window.visualViewport?.addEventListener('resize',resize);
   new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);
