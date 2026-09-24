@@ -1,6 +1,6 @@
 # Alignment
 
-[Play](https://royschwartz.github.io/alignment/) · [First-night preview](https://royschwartz.github.io/alignment/preview/?story&test&preview=night) · [Android download](https://royschwartz.github.io/alignment/downloads/Alignment-Stage-1.apk)
+[Play](https://royschwartz.github.io/alignment/?v=1.4.1) · [First-night preview](https://royschwartz.github.io/alignment/preview/?story&test&preview=night&v=1.4.1) · [Android download](https://royschwartz.github.io/alignment/downloads/Alignment-Stage-1.apk)
 
 Version 1.4.1. Roy’s current authored manuscript, a white phone screen, portrait choice cards and native-size text. Phones fill the available viewport; desktop previews use a 480 × 960 canvas and scroll when needed. The restored hand rests over a selected card for 650 ms before the transition. Game audio remains paused.
 
