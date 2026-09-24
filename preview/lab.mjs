@@ -2,12 +2,12 @@
 // prototype deal; it has no access to the manuscript.
 import {PAIN,NEED,PAIRINGS} from './card-treatments.mjs';
 import {STORY_ENABLED,storySettings,saveStorySettings} from './first-nights.mjs';
-const KEY='alignment.display-lab.v3';
+const KEY='alignment.display-lab.v4';
 // Roy, September 23: need cards come on a chain; pain marks and needs wait for the heart;
 // three cards until Roy brings in the fourth, face-down card; a check takes one to two hours.
-const defaults={cardDesign:'simple',photoMode:'gray',border:'fern',pain:'bramble',need:'chain',needIds:['dinner'],surprising:[],withdrawCost:1,checkMin:60,checkMax:120,dependency:2,faceDownCard:false,threads:{}};
+const defaults={cardDesign:'simple',photoMode:'gray',border:'fern',pain:'none',need:'none',needIds:[],surprising:[],withdrawCost:1,checkMin:60,checkMax:120,dependency:2,faceDownCard:false,threads:{}};
 export const lab={...defaults};
-try{const saved=JSON.parse(localStorage.getItem(KEY));Object.assign(lab,saved||{...JSON.parse(localStorage.getItem('alignment.display-lab.v2')||'{}'),cardDesign:'simple'});}catch{}
+try{const saved=JSON.parse(localStorage.getItem(KEY));Object.assign(lab,saved||{...JSON.parse(localStorage.getItem('alignment.display-lab.v3')||'{}'),cardDesign:'simple',pain:'none',need:'none',needIds:[]});}catch{}
 if(!PAIN.some(t=>t.id===lab.pain))lab.pain=defaults.pain;
 if(!NEED.some(t=>t.id===lab.need))lab.need=defaults.need;
 for(const key of ['needIds','surprising'])if(!Array.isArray(lab[key]))lab[key]=[...defaults[key]];

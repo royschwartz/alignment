@@ -1,0 +1,27 @@
+{
+  "license": "CC0-1.0",
+  "creator": "Kenney",
+  "sourceUrl": "https://kenney.nl/assets/casino-audio",
+  "sounds": [
+    {
+      "cue": "arrival",
+      "file": "arrival.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-shuffle.ogg",
+      "sourceSha256": "96c84883a30845ede723a4cf2e8369e9837e7dd4e0d4eb0212b0a7ed21b0f544",
+      "sha256": "3fbe48c1b41573203e93ce6e9396b94a87a5d66864552d5e624ade31f64f41cc",
+      "offsetSeconds": 0.14,
+      "durationSeconds": 0.58,
+      "edits": "Mono, native pitch, short excerpt, level matched, 5 ms fade in and 30 ms fade out."
+    },
+    {
+      "cue": "withdrawal",
+      "file": "withdrawal.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-shove-1.ogg",
+      "sourceSha256": "1ea667aa6795d5f14239192116ebcbd8f3f47eb1c7faaf2ec56844b9067b8b06",
+      "sha256": "24ae838088b5c89c2e1447a38f978952989da2a81a39c7c7145da9d3a970d392",
+      "offsetSeconds": 0.06,
+      "durationSeconds": 0.28,
+      "edits": "Mono, native pitch, short excerpt, level matched, 5 ms fade in and 30 ms fade out."
+    }
+  ]
+}

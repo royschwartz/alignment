@@ -1,31 +1,32 @@
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, cardMarks, presentCards, SAVE_KEY } from './author-core.mjs?v=1.4.3';
-import { cardChoices } from './author-schema.mjs?v=1.4.3';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.4';
+import { cardChoices } from './author-schema.mjs?v=1.4.4';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
+import {CardAudio} from './card-audio.mjs?v=1.4.4';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
 import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
-import {gameClock} from './story-clock.mjs?v=1.4.3';
+import {gameClock} from './story-clock.mjs?v=1.4.4';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.3';
-import {drawChoiceCard,drawChain,drawChainGlyph} from './card-treatments.mjs?v=1.4.3';
-import {drawEventLinks} from './event-links.mjs?v=1.4.3';
-import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.3';
+import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.4';
+import {drawChoiceCard,drawChainGlyph} from './card-treatments.mjs?v=1.4.4';
+import {drawEventLinks} from './event-links.mjs?v=1.4.4';
+import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.4';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
 const $ = id => document.getElementById(id);
 const canvas = $('card'), ctx = canvas.getContext('2d', { willReadFrequently: true });
-// Roy has paused all in-game audio while auditioning alternatives separately.
-const audio = new StackAudio({bank:'silent'}), icons = {};
+// Attribute/story audio stays paused; card handling has its own sound control.
+const audio = new StackAudio({bank:'silent'}), cardAudio=new CardAudio(), icons = {};
 let storage;
 try { const memory=new Map();storage=new URLSearchParams(location.search).has('test')?{getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value)}:window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
 let prefs;
 try { prefs = JSON.parse(storage.getItem('alignment.preferences')) || {}; } catch { prefs = {}; }
-prefs = { sound: false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
-audio.enabled = prefs.sound;
+prefs = { sound: false, cardSound:prefs.cardSound!==false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
+audio.enabled = prefs.sound;cardAudio.enabled=prefs.cardSound;
 let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
 let heldStats=null,choiceSources={},lastChoiceSource=null;
 const statCues=new Map();let statCueTimer=null;
@@ -78,12 +79,10 @@ function quiet(c, out, label, x, y, w, h, action, accessible = label) {
   text(c, label, x + w / 2, y + (h - SMALL_FONT) / 2, SMALL_FONT, { center: true });
   control(out, accessible, x, y, w, h, action);
 }
-function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false, marks={} } = {}) {
+function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false } = {}) {
   if(card){
-    drawChoiceCard(c,{x,y,w,h,label,textLayout,available,pain:marks.pain?'bramble':'none',need:marks.need?'chain':'none',level:marks.level||1,id:action,fontFamily:PHONE_FONT,bold:false,reduceMotion:prefs.reduceMotion});
-    const role=marks.need?' (need)':marks.pain?' (pain)':'';
-    control(out,label+role,x,y,w,h,action,available);
-    Object.assign(out.buttons.at(-1),{pain:marks.pain?'bramble':'none',need:marks.need?'chain':'none'});
+    drawChoiceCard(c,{x,y,w,h,label,textLayout,available,id:action,fontFamily:PHONE_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+    control(out,label,x,y,w,h,action,available);
     out.cards?.push({action,x,y,w,h});return;
   }
   box(c, x, y, w, h);
@@ -179,7 +178,7 @@ function scene(c, out, node, intro = true) {
   font(c,size,options.bold,options.italic);const measure=value=>c.measureText(value).width,margin=proseMargin(width);
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
-  const bottom = node.prompt?choiceGrid(4,height-90).top-24:choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
+  const bottom = choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
   const capacity = Math.max(1,Math.floor((bottom-178)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
   const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
   const top = Math.max(178, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
@@ -190,9 +189,6 @@ function scene(c, out, node, intro = true) {
   out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
   out.text = blank ? node.sound : pages>1?visibleRows.map(row=>row.text).join('\n'):node.text;
   if(pages>1)text(c,`${page+1} / ${pages}`,width/2,height-47,SMALL_FONT,{center:true});
-  if(!intro&&node.prompt){
-    header(c,out);warningChoices(c,out);return;
-  }
   if (!intro) {
     // Result cards dismiss by tapping the card, just like reading an intertitle.
     control(out, UI.dismiss, 1, 1, width - 2, height - 2, 'dismiss-message');
@@ -222,14 +218,6 @@ function scene(c, out, node, intro = true) {
   }
   if (page>0||state.trail.length) quiet(c, out, '←', 14, height - 78, 56, 56, page>0?'scene-prev':'back', UI.back);
 }
-function warningChoices(c,out){
-  const grid=choiceGrid(4,height-90),parent={x:(width-grid.w)/2,y:(grid.cell(0).y+grid.cell(1).y)/2,w:grid.w,h:grid.h};
-  const action=ACTIONS.find(a=>a.id===state.hesitation?.action);
-  drawEventLinks(c,grid.cards.slice(2),{x:width/2,y:parent.y+parent.h});
-  drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'bramble',fontFamily:PHONE_FONT,bold:false,reduceMotion:prefs.reduceMotion});
-  out.cards.push({...parent,action:'event-parent'});
-  [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=grid.cell(i+2);button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
-}
 function main(c, out) {
   header(c, out);
   const entry=statusEntry(state);
@@ -242,12 +230,9 @@ function main(c, out) {
   actionPage = Math.min(actionPage,pages-1);
   const actions = allActions.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(actions.length,height-94);
   const enabled = new Set(availableActions(state).map(action => action.id));
-  for(const [i,action] of actions.entries())if(enabled.has(action.id)&&cardMarks(state,action).need){
-    const at=grid.cell(i);drawChain(c,{x:headerStatX('rapture',width),y:143},{...at,routeX:at.x<width/2?at.x-10:at.x+at.w+10},performance.now(),0,prefs.reduceMotion);
-  }
   logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
   actions.forEach((action, i) => {
-    const {x,y}=grid.cell(i);button(c, out, action.label, x,y,grid.w,grid.h,action.id, { available: enabled.has(action.id),textLayout:TEXT_LAYOUTS.actions?.[action.id]||{},card:true,marks:enabled.has(action.id)?cardMarks(state,action):{} });
+    const {x,y}=grid.cell(i);button(c, out, action.label, x,y,grid.w,grid.h,action.id, { available: enabled.has(action.id),textLayout:TEXT_LAYOUTS.actions?.[action.id]||{},card:true });
     // The authored vine artwork will use this same computed loss as the warnings.
     out.buttons.at(-1).raptureCost=raptureCost(state,action);
   });
@@ -280,8 +265,7 @@ function draw() {
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
 function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(3,rect.top+3)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
 function installControls() {
-  const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
-  if(!editorPreview&&screen==='main'&&!state.message&&!currentWarning(state)){const next=presentCards(state,layout.buttons.filter(b=>b.need==='chain').map(b=>b.action));if(next!==state){state=next;save();}}
+  $('story-clock').hidden=state.phase!=='playing';const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
   $('controls').replaceChildren();
   for (const b of layout.buttons) {
     const el = document.createElement('button'); el.textContent = b.label; el.setAttribute('aria-label', b.label);
@@ -296,11 +280,11 @@ function installControls() {
 function redraw() {
   $('settings-title').textContent=UI.settings;$('restart').textContent=UI.restart;
   $('settings').querySelector('form button').textContent=UI.return;
-  $('sound').parentElement.lastChild.textContent=' '+UI.sound;$('motion').parentElement.lastChild.textContent=' '+UI.motion;
+  $('sound').parentElement.lastChild.textContent=' card sounds';$('motion').parentElement.lastChild.textContent=' '+UI.motion;
   const frame = draw(); pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls();
 }
 function resize() {
-  stopStatCue();
+  stopStatCue();cardAudio.cancel();
   animationId++; heldStats=null; busy = false;
   lastViewportWidth=document.documentElement.clientWidth;
   ({width,height}=phoneScreen(lastViewportWidth,window.visualViewport?.height||innerHeight));
@@ -341,7 +325,7 @@ async function activate(action,selectionPoint=null) {
     state = next; screen = 'main'; if(!warningStep)actionPage=0;textPage=0;
   }
   // Persist the committed choice before the animation, including refusal/reading position.
-  save(); busy = true; $('controls').replaceChildren(); audio.unlock();
+  save(); busy = true; $('controls').replaceChildren(); audio.unlock();cardAudio.unlock();
   if (state.phase === 'intro' && currentNode(state).kind === 'feeding') audio.feed();
   const feedback=attributeFeedback(before,state,HUNGER_INDICATOR);
   const event=state.events.at(-1),outcomeArrived=event&&!state.message&&(state.events.length>before.events.length||!!before.message);
@@ -363,6 +347,8 @@ async function activate(action,selectionPoint=null) {
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
   heldStats=Object.entries(previousStats);
   const held=draw().pixels;heldStats=null;
+  cardAudio.cancel();
+  void cardAudio.transition({outgoing:previousLayout.cards.length,incoming:frame.layout.cards.length,startedAt,reduced:prefs.reduceMotion});
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
@@ -373,9 +359,9 @@ async function activate(action,selectionPoint=null) {
   }
 }
 
-function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
+function pause() { stopStatCue();save(); audio.stop();cardAudio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
 function restart() {
-  stopStatCue();
+  stopStatCue();cardAudio.stop();
   animationId++; busy = false; choiceSources={};lastChoiceSource=null; audio.stop();
   // A reversible restart retains the previous authored playthrough too.
   try { if(!testBackup)storage.setItem(`${SAVE_KEY}.before-restart`, serializeGame(state)); } catch {}
@@ -383,12 +369,13 @@ function restart() {
 }
 try {
   state = restoreGame(storage.getItem(SAVE_KEY)) || createGame();
-  audio.prepare();
+  audio.prepare();cardAudio.prepare();
   await Promise.all([...new Set(['home',...Object.values(STAT_ICONS)])].map(name => new Promise((resolve, reject) => {
     const image = new Image(); image.onload = () => { icons[name] = image; resolve(); };
     image.onerror = () => reject(Error(`Missing icon: ${name}`)); image.src = `icons/${name}.png`;
   })));
-  $('sound').checked = false; $('sound').disabled=true; $('sound').parentElement.hidden=true;
+  $('sound').checked=prefs.cardSound;$('sound').disabled=false;$('sound').parentElement.hidden=false;
+  $('sound').onchange=event=>{prefs.cardSound=event.target.checked;cardAudio.setEnabled(prefs.cardSound);savePrefs();};
   $('motion').checked = prefs.reduceMotion;
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
@@ -402,7 +389,7 @@ try {
     if ($('settings').open) { $('settings').close(); return true; }
     if(editorPreview)return false;
     if(textPage>0){textPage--;redraw();return true;}
-    if (busy) { animationId++; busy = false; redraw(); return true; }
+    if (busy) { cardAudio.cancel();animationId++; busy = false; redraw(); return true; }
     if (screen === 'log') { activate('close-log'); return true; }
     if (state.message||currentWarning(state)) { activate('dismiss-message'); return true; }
     if (state.phase === 'intro' && state.trail.length) { activate('back'); return true; }
@@ -427,10 +414,10 @@ try {
     fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
-    const {mountEditor}=await import('./editor-client.mjs?v=1.4.3');
+    const {mountEditor}=await import('./editor-client.mjs?v=1.4.4');
     editor=await mountEditor({
       current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:{type:'logs',id:state.logs.at(-1)||'opening'}),
-      apply:(doc,{temporary=false}={})=>{stopStatCue();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},
+      apply:(doc,{temporary=false}={})=>{stopStatCue();cardAudio.cancel();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},
       preview:selection=>{stopStatCue();if(testBackup){state=testBackup.state;screen=testBackup.screen;testBackup=null;}editorPreview=selection;textPage=0;animationId++;busy=false;resize();},
       play:()=>{stopStatCue();if(testBackup){state=testBackup.state;screen=testBackup.screen;testBackup=null;}editorPreview=null;resize();},
       test:selection=>{

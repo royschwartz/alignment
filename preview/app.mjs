@@ -1,20 +1,21 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.3';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.4';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.3';
-import { cardChoices } from './author-schema.mjs?v=1.4.3';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.4';
+import { cardChoices } from './author-schema.mjs?v=1.4.4';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
+import {CardAudio} from './card-audio.mjs?v=1.4.4';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
 import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
-import {gameClock} from './story-clock.mjs?v=1.4.3';
+import {gameClock} from './story-clock.mjs?v=1.4.4';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.3';
-import {drawEventLinks} from './event-links.mjs?v=1.4.3';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.4';
+import {drawEventLinks} from './event-links.mjs?v=1.4.4';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.3';
-import {mountLab,lab,showDeal} from './lab.mjs';
+import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.4';
+import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.4';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 
@@ -22,14 +23,14 @@ import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 // All narrative comes from the author's script; this file only handles presentation.
 const $ = id => document.getElementById(id);
 const canvas = $('card'), ctx = canvas.getContext('2d', { willReadFrequently: true });
-// Roy has paused all in-game audio while auditioning alternatives separately.
-const audio = new StackAudio({bank:'silent'}), icons = {};
+// Attribute/story audio stays paused; card handling has its own sound control.
+const audio = new StackAudio({bank:'silent'}), cardAudio=new CardAudio(), icons = {};
 let storage;
 try { const memory=new Map();storage=new URLSearchParams(location.search).has('test')?{getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value)}:window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
 let prefs;
 try { prefs = JSON.parse(storage.getItem('alignment.preferences')) || {}; } catch { prefs = {}; }
-prefs = { sound: false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
-audio.enabled = prefs.sound;
+prefs = { sound: false, cardSound:prefs.cardSound!==false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
+audio.enabled = prefs.sound;cardAudio.enabled=prefs.cardSound;
 let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
 let heldStats=null,choiceSources={},lastChoiceSource=null;
 const statCues=new Map();let statCueTimer=null;
@@ -228,7 +229,7 @@ function warningChoices(c,out){
   const grid=choiceGrid(4,height-90),parent={x:(width-grid.w)/2,y:(grid.cell(0).y+grid.cell(1).y)/2,w:grid.w,h:grid.h};
   const action=ACTIONS.find(a=>a.id===state.hesitation?.action);
   drawEventLinks(c,grid.cards.slice(2),{x:width/2,y:parent.y+parent.h});
-  drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'bramble',fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+  drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'none',fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
   out.cards.push({...parent,action:'event-parent'});
   [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=grid.cell(i+2);button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
 }
@@ -247,7 +248,7 @@ function drawDealt(c,card,size,now) {
   const opts={x:0,y:0,w,h,label:card.action.label,textLayout:TEXT_LAYOUTS.actions?.[card.action.id]||{align:'center'},pain:card.painLook,need:card.needLook,
     level:card.level,id:card.action.id,t:now,since:sceneSince,reduceMotion:prefs.reduceMotion,photoMode:lab.photoMode,border:lab.border,labelInset:STORY_ENABLED?8:14};
   c.save();c.translate(at.x,at.y);c.scale(at.k,at.k);
-  if(lab.cardDesign==='simple'){c.fillStyle='#000';c.fillRect(1,1,w,h);}
+
   const drawFace=options=>lab.cardDesign==='photo'?drawPhotoCard(c,{...options,pain:options.pain!=='none',need:options.need!=='none'}):drawChoiceCard(c,{...options,fontFamily:MAC_FONT,bold:lab.cardDesign!=='simple'});
   if(anim?.kind==='flip'&&anim.ids.includes(card.action.id)) {
     // Turn the card over around its middle: back narrows, then the face widens.
@@ -333,7 +334,7 @@ function draw() {
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
 function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(3,rect.top+3)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
 function installControls() {
-  const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
+  $('story-clock').hidden=state.phase!=='playing';const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
   // A need is eligible only once its marked, interactive card has been painted.
   if(screen==='main'&&!editorPreview&&!document.hidden&&!busy){
     const next=presentHand(state,layout.buttons.filter(b=>b.need&&b.need!=='none').map(b=>b.action));
@@ -353,11 +354,11 @@ function installControls() {
 function redraw() {
   $('settings-title').textContent=UI.settings;$('restart').textContent=UI.restart;
   $('settings').querySelector('form button').textContent=UI.return;
-  $('sound').parentElement.lastChild.textContent=' '+UI.sound;$('motion').parentElement.lastChild.textContent=' '+UI.motion;
+  $('sound').parentElement.lastChild.textContent=' card sounds';$('motion').parentElement.lastChild.textContent=' '+UI.motion;
   const frame = draw(); pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls();
 }
 function resize() {
-  stopStatCue();
+  stopStatCue();cardAudio.cancel();
   animationId++; anim=null; heldStats=null; busy = false;
   lastViewportWidth=document.documentElement.clientWidth;
   ({width,height}=phoneScreen(lastViewportWidth,window.visualViewport?.height||innerHeight));
@@ -406,7 +407,7 @@ async function activate(action,selectionPoint=null) {
     state = next; screen = 'main'; if(!warningStep)actionPage=0;textPage=0;
   }
   // Persist the committed choice before the animation, including refusal/reading position.
-  save(); busy = true; $('controls').replaceChildren(); audio.unlock();
+  save(); busy = true; $('controls').replaceChildren(); audio.unlock();cardAudio.unlock();
   if (state.phase === 'intro' && currentNode(state).kind === 'feeding') audio.feed();
   const feedback=attributeFeedback(before,state,HUNGER_INDICATOR);
   const event=state.events.at(-1),outcomeArrived=event&&!state.message&&(state.events.length>before.events.length||!!before.message);
@@ -428,6 +429,8 @@ async function activate(action,selectionPoint=null) {
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
   heldStats=Object.entries(previousStats);
   const held=draw().pixels;heldStats=null;
+  cardAudio.cancel();
+  void cardAudio.transition({outgoing:previousLayout.cards.length,incoming:frame.layout.cards.length,startedAt,reduced:prefs.reduceMotion});
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
@@ -438,9 +441,9 @@ async function activate(action,selectionPoint=null) {
   }
 }
 
-function pause() { stopStatCue();save(); audio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
+function pause() { stopStatCue();save(); audio.stop();cardAudio.stop(); if (busy) { animationId++; busy = false; redraw(); }else redraw(); }
 function restart() {
-  stopStatCue();
+  stopStatCue();cardAudio.stop();
   animationId++; busy = false; anim=null;choiceSources={};lastChoiceSource=null; audio.stop();
   // A reversible restart retains the previous authored playthrough too.
   try { if(!testBackup)storage.setItem(`${SAVE_KEY}.before-restart`, serializeGame(state)); } catch {}
@@ -448,7 +451,7 @@ function restart() {
 }
 // Lab shortcuts: replay the real rules to reach a screen, as the editor's test play does.
 function labJump(where) {
-  stopStatCue();animationId++;busy=false;
+  stopStatCue();cardAudio.cancel();animationId++;busy=false;
   let next=createGame();
   const run=(id,read=true)=>{const count=next.events.filter(e=>e.id===id).length;for(let i=0;i<300&&next.events.filter(e=>e.id===id).length===count;i++){
     if(!hand(next).cards.some(c=>c.action.id===id)){next=choose(next,'check');while(next.message)next=choose(next,'dismiss-message');continue;}
@@ -477,13 +480,14 @@ setInterval(()=>{
 },50);
 try {
   state = restoreGame(storage.getItem(SAVE_KEY)) || createGame();
-  audio.prepare();
+  audio.prepare();cardAudio.prepare();
   if(['localhost','127.0.0.1'].includes(location.hostname))await loadCardPhotos();
   await Promise.all([...new Set(['home',...Object.values(STAT_ICONS)])].map(name => new Promise((resolve, reject) => {
     const image = new Image(); image.onload = () => { icons[name] = image; resolve(); };
     image.onerror = () => reject(Error(`Missing icon: ${name}`)); image.src = `icons/${name}.png`;
   })));
-  $('sound').checked = false; $('sound').disabled=true; $('sound').parentElement.hidden=true;
+  $('sound').checked=prefs.cardSound;$('sound').disabled=false;$('sound').parentElement.hidden=false;
+  $('sound').onchange=event=>{prefs.cardSound=event.target.checked;cardAudio.setEnabled(prefs.cardSound);savePrefs();};
   $('motion').checked = prefs.reduceMotion;
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
@@ -497,7 +501,7 @@ try {
     if ($('settings').open) { $('settings').close(); return true; }
     if(editorPreview)return false;
     if(textPage>0){textPage--;redraw();return true;}
-    if (busy) { animationId++; busy = false; redraw(); return true; }
+    if (busy) { cardAudio.cancel();animationId++; busy = false; redraw(); return true; }
     if (screen === 'log') { activate('close-log'); return true; }
     if (state.message||currentWarning(state)) { activate('dismiss-message'); return true; }
     if (state.phase === 'intro' && state.trail.length) { activate('back'); return true; }

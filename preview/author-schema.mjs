@@ -67,8 +67,6 @@ export function validateDocument(doc) {
     if (!Number.isFinite(action.minutes) || action.minutes < 0 || action.minutes > 10080) fail('Task duration must be between 0 and 10,080 minutes.');
     if (action.drainRapture !== undefined && typeof action.drainRapture !== 'boolean') fail('Choose whether time spent on this task reduces rapture.');
     if (action.warnRaptureLoss !== undefined && typeof action.warnRaptureLoss !== 'boolean') fail('Choose whether rapture loss needs a warning.');
-    for(const key of ['need','narratorSeesPain'])if(action[key]!==undefined&&typeof action[key]!=='boolean')fail('Check the card markings.');
-    if(action.needCost!==undefined&&(!Number.isFinite(action.needCost)||action.needCost<0||action.needCost>1e9))fail('Need withdrawal must be a nonnegative rapture amount.');
     if (action.statOnlyLog !== undefined && typeof action.statOnlyLog !== 'boolean') fail('Choose whether this option can use a stat-only log.');
     if(action.repeatable!==undefined&&typeof action.repeatable!=='boolean')fail('Choose whether this option can be repeated.');
     if(action.outcomes!==undefined) {
