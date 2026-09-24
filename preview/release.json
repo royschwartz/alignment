@@ -1,5 +1,5 @@
 {
-  "version": "1.4.9",
+  "version": "1.4.10",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 24,
+  "versionCode": 25,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
@@ -33,7 +33,7 @@
   "eventChoiceLinks": true,
   "selectionHandScale": 0.6,
   "cardSoundEffects": true,
-  "cardTopEdges": "stacked",
+  "cardTopEdges": "solid-worn-ink",
   "clockStartsAt": "begin",
   "logPresentation": "prose-only",
   "headerChanges": "latest-outcome-until-next-choice",
@@ -48,5 +48,13 @@
     "sourceHeight": 90
   },
   "eventChoiceLinkStyle": "symmetric-fork",
-  "attributeHeader": "raised-with-permanent-divider"
+  "attributeHeader": "raised-with-permanent-divider",
+  "cardArrivalStaggerMs": 65,
+  "cardWithdrawalStaggerMs": 35,
+  "cardSoundKinds": [
+    "arrival",
+    "withdrawal",
+    "disintegration"
+  ],
+  "cardSoundsPerCard": true
 }

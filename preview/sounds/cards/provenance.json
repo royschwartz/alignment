@@ -6,22 +6,32 @@
     {
       "cue": "arrival",
       "file": "arrival.wav",
-      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-shuffle.ogg",
-      "sourceSha256": "96c84883a30845ede723a4cf2e8369e9837e7dd4e0d4eb0212b0a7ed21b0f544",
-      "sha256": "3fbe48c1b41573203e93ce6e9396b94a87a5d66864552d5e624ade31f64f41cc",
-      "offsetSeconds": 0.14,
-      "durationSeconds": 0.58,
-      "edits": "Mono, native pitch, short excerpt, level matched, 5 ms fade in and 30 ms fade out."
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-4.ogg",
+      "sourceSha256": "b9c82bcdbe6b7d00a06e2546bd2683a9ab082ca5fd090a42882f33eddd925b7f",
+      "sha256": "fcb11e41d3859fc1f7c6baec94d0881cbf07a06ebd4bf6ca99c771eb5543188c",
+      "offsetSeconds": 0.007936507936507936,
+      "durationSeconds": 0.16,
+      "edits": "Mono, native pitch, leading silence removed, 90 Hz high-pass and 9000 Hz low-pass, level matched, 5 ms fade in and 25 ms fade out."
     },
     {
       "cue": "withdrawal",
       "file": "withdrawal.wav",
       "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-shove-1.ogg",
       "sourceSha256": "1ea667aa6795d5f14239192116ebcbd8f3f47eb1c7faaf2ec56844b9067b8b06",
-      "sha256": "24ae838088b5c89c2e1447a38f978952989da2a81a39c7c7145da9d3a970d392",
-      "offsetSeconds": 0.06,
-      "durationSeconds": 0.28,
-      "edits": "Mono, native pitch, short excerpt, level matched, 5 ms fade in and 30 ms fade out."
+      "sha256": "7c4430a6001e3db66c397f1d047e89ace32d69eee8f616f94b7cbebeaef2ebbc",
+      "offsetSeconds": 0.11426303854875283,
+      "durationSeconds": 0.1350113378684807,
+      "edits": "Mono, native pitch, leading silence removed, 90 Hz high-pass and 9000 Hz low-pass, level matched, 5 ms fade in and 25 ms fade out."
+    },
+    {
+      "cue": "disintegration",
+      "file": "disintegration.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/cards-pack-open-2.ogg",
+      "sourceSha256": "49e02479815c69cd303e0d8f12952c0492d5b3e555838f3485cc25a09818e6fb",
+      "sha256": "d4787f3043f0816fe59459428541e7cdb76d08a77febf0d346c7fdb976cdf64b",
+      "offsetSeconds": 0.0,
+      "durationSeconds": 0.6,
+      "edits": "Mono, native pitch, leading silence removed, 700 Hz high-pass and 9000 Hz low-pass, level matched, 5 ms fade in and 25 ms fade out."
     }
   ]
 }

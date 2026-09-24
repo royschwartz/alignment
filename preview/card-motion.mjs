@@ -1,6 +1,21 @@
 // Real-time choreography in milliseconds. No game writes.
 export const W = 415, H = 830;
 export const DEAL_MS = 325, GAIN_MS = 860, LOSS_MS = GAIN_MS, CARD_REDEAL = 280;
+export const CARD_ENTRY_STAGGER = 65, CARD_EXIT_STAGGER = 35;
+export const cardExitKind=(card,selected,transfers=[])=>
+  (selected!=null&&card.action===selected)||transfers.some(t=>t.action===card.action&&t.delta<0)?'disintegration':'withdrawal';
+export const withdrawalWindow=index=>({start:25+index*CARD_EXIT_STAGGER,end:160+index*CARD_EXIT_STAGGER});
+// Sound and pixels share these per-card start times; no extra game time is added.
+export function cardSoundTimeline({outgoing=[],incoming=[],selected,transfers=[],reduced=false,hasHand=false}={}){
+  const events=outgoing.map((card,index)=>{
+    const cue=cardExitKind(card,selected,transfers),window=withdrawalWindow(index);
+    return {cue,card:card.action,index,
+      start:reduced?index*18:cue==='disintegration'?20:window.start,
+      end:reduced?90:cue==='disintegration'?(hasHand&&card.action===selected?650:CARD_REDEAL):window.end};
+  });
+  return events.concat(incoming.map((card,index)=>({cue:'arrival',card:card.action,index,
+    start:reduced?90+index*18:CARD_REDEAL+index*CARD_ENTRY_STAGGER,end:reduced?180:GAIN_MS})));
+}
 export const GAIN_LAUNCH = 100, GAIN_COAST = 270, GAIN_ARRIVAL = GAIN_MS;
 export const LOSS_RELEASE = 391 / 1.3, LOSS_ARRIVAL = LOSS_MS;
 // Keep the fast opening flicker, then stretch the pull to the shared finish.
@@ -12,8 +27,12 @@ const smoother = x => { const p = clamp(x); return p*p*p*(p*(p*6-15)+10); };
 export const segment = (t, from, to) => clamp((t - from) / (to - from));
 const hermite = (p, startSlope, endSlope) => (p*p*p-2*p*p+p)*startSlope + (-2*p*p*p+3*p*p) + (p*p*p-p*p)*endSlope;
 export function entry(card, index, elapsed, reduced = false, duration = DEAL_MS, viewportHeight = H) {
-  const progress = reduced ? 1 : smoother(segment(elapsed, index * 35, duration));
+  const progress = reduced ? 1 : smoother(segment(elapsed, index * CARD_ENTRY_STAGGER, duration));
   return {x: card.x, y: mix(viewportHeight + 1, card.y, progress), progress};
+}
+export function withdrawal(index,elapsed){
+  const {start,end}=withdrawalWindow(index);
+  return smooth(segment(elapsed,start,end));
 }
 export const inkVisible = (rank, reveal, erase = 0) => rank < reveal && rank >= erase;
 // Brief on/off flashes affect only the traveling number, never the page.

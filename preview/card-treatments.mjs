@@ -322,12 +322,14 @@ function drawWornInkFace(c,x,y,w,h,rim){
 }
 
 export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,available=true,pain='none',need='none',level=2,faceDown=false,id='',t=0,since=0,reduceMotion=false,fontFamily='monospace',bold=true}) {
-  // The thin stacked top edges in Roy's reference stay within the card's
-  // footprint, so single-card exports and animated captures include them too.
-  c.save();c.strokeStyle='#000';c.lineWidth=1;
-  for(let layer=0;layer<3;layer++){
-    const inset=6-layer*2,yy=y+layer*2+.5;
-    c.beginPath();c.moveTo(x+inset,yy+2);c.lineTo(x+inset,yy);c.lineTo(x+w-inset,yy);c.stroke();
+  // A single inked top face replaces the stripes, within the same footprint.
+  c.save();c.fillStyle='#000';
+  for(let row=0;row<6;row++){
+    const inset=6-row;c.fillRect(x+inset,y+row,w-2*inset,1);
+  }
+  c.fillStyle='#fff';
+  for(let row=2;row<5;row++)for(let col=9;col<w-9;col++){
+    if(inkNoise(Math.floor(col/2),Math.floor(row/2),47)>.8&&inkNoise(col,row,8)>.3)c.fillRect(x+col,y+row,1,1);
   }
   c.restore();y+=6;h-=6;
   const k=reduceMotion?.6:pulse(t,since),b=reduceMotion?1:breath(t,since);

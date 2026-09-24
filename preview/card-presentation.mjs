@@ -1,6 +1,6 @@
-import {headerStatLayout} from './game-stats.mjs?v=1.4.9';
-import {GAIN_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible} from './card-motion.mjs';
-import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.9';
+import {headerStatLayout} from './game-stats.mjs?v=1.4.10';
+import {GAIN_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible,cardExitKind,withdrawal} from './card-motion.mjs?v=1.4.10';
+import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.10';
 
 export const FORMAT_MS=GAIN_MS;
 export const HEADER_BOTTOM=200;
@@ -8,7 +8,7 @@ export const MAC_FONT='Geneva, Helvetica, sans-serif';
 const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);return ((n^(n>>>16))>>>0)/4294967296;};
 const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),16777619),2166136261)>>>0;
 
-export {cardLayout} from './phone-screen.mjs?v=1.4.9';
+export {cardLayout} from './phone-screen.mjs?v=1.4.10';
 
 // Receipt amounts decide the glyphs. Net totals are deliberately independent:
 // +5 direct rapture still reads +5 when task time also drains 4.
@@ -71,14 +71,17 @@ export class CardTransition {
    this.overlay?.(g,elapsed/this.duration);return this.canvas;
   }
   g.fillStyle='#000';
-  for(const item of this.outgoing){
+  for(const [index,item] of this.outgoing.entries()){
    const {card,surface,points}=item,m=motion({...card,delta:1,target:{x:w/2,y:headerStatLayout(w).transferY}},elapsed);
-   if(card.action===this.selected||this.transfers.some(t=>t.card.action===card.action&&t.card.delta<0)){
+   if(cardExitKind(card,this.selected,this.transfers.map(t=>t.card))==='disintegration'){
     // Let the selected outline linger under the hand while the number travels.
     // This overlaps the same 860 ms sequence rather than delaying its launch.
     const dissolve=card.action===this.selected&&this.handImage?smooth(segment(elapsed,160,SELECTION_HOLD_MS)):m.dissolve;
     for(const p of points){const progress=Math.abs(p.y-card.h/2)<24?Math.max(dissolve,m.labelDissolve):dissolve;if(p.rank>=progress)g.fillRect(card.x+p.x,card.y+p.y,1,1);}
-   }else if(m.retreat<1)g.drawImage(surface,card.x,Math.round(card.y+m.retreat*(h-card.y+12)));
+   }else {
+    const retreat=withdrawal(index,elapsed);
+    if(retreat<1)g.drawImage(surface,card.x,Math.round(card.y+retreat*(h-card.y+12)));
+   }
   }
   if(elapsed>=CARD_REDEAL)this.incoming.forEach(({card,surface},i)=>{
    const at=entry(card,i,elapsed-CARD_REDEAL,false,FORMAT_MS-CARD_REDEAL,h);g.drawImage(surface,Math.round(at.x),Math.round(at.y));

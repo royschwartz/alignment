@@ -1,21 +1,21 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.9';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.10';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.9';
-import { cardChoices } from './author-schema.mjs?v=1.4.9';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.10';
+import { cardChoices } from './author-schema.mjs?v=1.4.10';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.9';
+import {CardAudio} from './card-audio.mjs?v=1.4.10';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
-import {STAT_ICONS,headerStatX,headerStatLayout,signedChange} from './game-stats.mjs?v=1.4.9';
-import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.9';
-import {gameClock} from './story-clock.mjs?v=1.4.9';
+import {STAT_ICONS,headerStatX,headerStatLayout,signedChange} from './game-stats.mjs?v=1.4.10';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.10';
+import {gameClock} from './story-clock.mjs?v=1.4.10';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.9';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.9';
-import {drawEventLinks} from './event-links.mjs?v=1.4.9';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.10';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.10';
+import {drawEventLinks} from './event-links.mjs?v=1.4.10';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.9';
-import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.9';
+import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.10';
+import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.10';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 
@@ -432,7 +432,7 @@ async function activate(action,selectionPoint=null) {
   heldStats=pendingStats;
   const held=draw().pixels;heldStats=null;
   cardAudio.cancel();
-  void cardAudio.transition({outgoing:previousLayout.cards.length,incoming:frame.layout.cards.length,startedAt,reduced:prefs.reduceMotion});
+  void cardAudio.transition({outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,hasHand:!!icons.hand,startedAt,reduced:prefs.reduceMotion});
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
