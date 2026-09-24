@@ -12,11 +12,12 @@ export function presentedStats(state,config) {
   return displayedStats(state,config).map(([stat,value])=>[stat,holdsStat(state,stat)?value-(event.delta[stat]||0):value]);
 }
 // The latest outcome's direct changes live beside the totals, not in the prose.
+// Show them from commitment, including while result cards are read.
 // Keep them until another task is committed. Reading, resize and reload only
 // redraw this receipt; they never replay an effect or change an account.
 export function headerChangeAmounts(state,config) {
   const event=state.events.at(-1);
-  if(state.phase==='intro'||state.message||!event)return {};
+  if(state.phase==='intro'||!event)return {};
   const visible=new Set(presentedStats(state,config).map(([stat])=>stat));
   const amounts={};
   for(const {stat,amount} of eventChanges(event))if(visible.has(stat))

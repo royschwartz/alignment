@@ -1,19 +1,19 @@
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.5';
-import { cardChoices } from './author-schema.mjs?v=1.4.5';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.6';
+import { cardChoices } from './author-schema.mjs?v=1.4.6';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.5';
+import {CardAudio} from './card-audio.mjs?v=1.4.6';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.5';
-import {gameClock} from './story-clock.mjs?v=1.4.5';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.6';
+import {gameClock} from './story-clock.mjs?v=1.4.6';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.5';
-import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.5';
-import {drawChoiceCard} from './card-treatments.mjs?v=1.4.5';
-import {drawEventLinks} from './event-links.mjs?v=1.4.5';
-import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.5';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.6';
+import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.6';
+import {drawChoiceCard} from './card-treatments.mjs?v=1.4.6';
+import {drawEventLinks} from './event-links.mjs?v=1.4.6';
+import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.6';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
@@ -112,7 +112,7 @@ function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (ico
 function header(c, out) {
   // Reserve each attribute's place even while it is hidden. Totals and direct
   // change badges stay in this same slot as other attributes are introduced.
-  const changes=heldStats||editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
+  const changes=editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
   (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
     const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
     if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,96);
@@ -335,12 +335,14 @@ async function activate(action,selectionPoint=null) {
     choiceSources=Object.fromEntries(previousLayout.cards.map(c=>[c.action,{...c}]));lastChoiceSource=choiceSources[selected];
   }
   const frame=draw(),cardsChanged=previousLayout.cards.length||frame.layout.cards.length;
-  // Announce the selected description now; totals arrive at the end of the deal.
-  $('narration').textContent=[frame.layout.text,...Object.entries(previousStats).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
+  // Signed changes appear with the description; only running totals wait.
+  const pendingStats=presentedStats(state,HUNGER_INDICATOR).map(([stat,value])=>[stat,previousStats[stat]??feedback.find(c=>c.stat===stat)?.from??value]);
+  const pendingChanges=headerChangeAmounts(state,HUNGER_INDICATOR);
+  $('narration').textContent=[frame.layout.text,...pendingStats.map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}${pendingChanges[id]?' ('+signedChange(pendingChanges[id])+')':''}`)].filter(Boolean).join('\n');
   const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:162,viewportWidth:width}]));
   const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
-  heldStats=Object.entries(previousStats);
+  heldStats=pendingStats;
   const held=draw().pixels;heldStats=null;
   cardAudio.cancel();
   void cardAudio.transition({outgoing:previousLayout.cards.length,incoming:frame.layout.cards.length,startedAt,reduced:prefs.reduceMotion});
@@ -409,7 +411,7 @@ try {
     fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
-    const {mountEditor}=await import('./editor-client.mjs?v=1.4.5');
+    const {mountEditor}=await import('./editor-client.mjs?v=1.4.6');
     editor=await mountEditor({
       current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:{type:'logs',id:state.logs.at(-1)||'opening'}),
       apply:(doc,{temporary=false}={})=>{stopStatCue();cardAudio.cancel();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},

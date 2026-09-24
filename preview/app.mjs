@@ -1,21 +1,21 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.5';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.6';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.5';
-import { cardChoices } from './author-schema.mjs?v=1.4.5';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.6';
+import { cardChoices } from './author-schema.mjs?v=1.4.6';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.5';
+import {CardAudio} from './card-audio.mjs?v=1.4.6';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
-import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.5';
-import {gameClock} from './story-clock.mjs?v=1.4.5';
+import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4.6';
+import {gameClock} from './story-clock.mjs?v=1.4.6';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.5';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.5';
-import {drawEventLinks} from './event-links.mjs?v=1.4.5';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.6';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.6';
+import {drawEventLinks} from './event-links.mjs?v=1.4.6';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.5';
-import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.5';
+import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.6';
+import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.6';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
 
@@ -118,7 +118,7 @@ function icon(c, name, x, y, size=32) { c.imageSmoothingEnabled = false; if (ico
 function header(c, out) {
   // Reserve each attribute's place even while it is hidden. Totals and direct
   // change badges stay in this same slot as other attributes are introduced.
-  const changes=heldStats||editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
+  const changes=editorPreview?{}:headerChangeAmounts(state,HUNGER_INDICATOR);
   (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
     const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
     if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,96);
@@ -421,12 +421,14 @@ async function activate(action,selectionPoint=null) {
     choiceSources=Object.fromEntries(previousLayout.cards.map(c=>[c.action,{...c}]));lastChoiceSource=choiceSources[selected];
   }
   const frame=draw(),cardsChanged=previousLayout.cards.length||frame.layout.cards.length;
-  // Announce the selected description now; totals arrive at the end of the deal.
-  $('narration').textContent=[frame.layout.text,...Object.entries(previousStats).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
+  // Signed changes appear with the description; only running totals wait.
+  const pendingStats=presentedStats(state,HUNGER_INDICATOR).map(([stat,value])=>[stat,previousStats[stat]??feedback.find(c=>c.stat===stat)?.from??value]);
+  const pendingChanges=headerChangeAmounts(state,HUNGER_INDICATOR);
+  $('narration').textContent=[frame.layout.text,...pendingStats.map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}${pendingChanges[id]?' ('+signedChange(pendingChanges[id])+')':''}`)].filter(Boolean).join('\n');
   const targets=Object.fromEntries(feedback.map(f=>[f.stat,{x:headerStatX(f.stat,width),y:162,viewportWidth:width}]));
   const fallback=previousLayout.cards.find(c=>c.action===action)||lastChoiceSource||{...choiceGrid(2).cell(0),action:selected};
   const transfers=transferCards(feedback,amounts,choiceSources,fallback,targets);
-  heldStats=Object.entries(previousStats);
+  heldStats=pendingStats;
   const held=draw().pixels;heldStats=null;
   cardAudio.cancel();
   void cardAudio.transition({outgoing:previousLayout.cards.length,incoming:frame.layout.cards.length,startedAt,reduced:prefs.reduceMotion});

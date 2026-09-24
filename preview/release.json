@@ -1,5 +1,5 @@
 {
-  "version": "1.4.5",
+  "version": "1.4.6",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 20,
+  "versionCode": 21,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
@@ -38,5 +38,6 @@
   "logPresentation": "prose-only",
   "headerChanges": "latest-outcome-until-next-choice",
   "descriptionTiming": "on-selection",
-  "cardFrame": "heavy-black-inset"
+  "cardFrame": "heavy-black-inset",
+  "headerChangeTiming": "on-commitment"
 }
