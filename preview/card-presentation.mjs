@@ -1,5 +1,5 @@
 import {GAIN_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible} from './card-motion.mjs';
-import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.2';
+import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.3';
 
 export const FORMAT_MS=GAIN_MS;
 export const HEADER_BOTTOM=172;
@@ -7,7 +7,7 @@ export const MAC_FONT='Geneva, Helvetica, sans-serif';
 const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);return ((n^(n>>>16))>>>0)/4294967296;};
 const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),16777619),2166136261)>>>0;
 
-export {cardLayout} from './phone-screen.mjs';
+export {cardLayout} from './phone-screen.mjs?v=1.4.3';
 
 // Receipt amounts decide the glyphs. Net totals are deliberately independent:
 // +5 direct rapture still reads +5 when task time also drains 4.
@@ -39,8 +39,8 @@ const amountText=amount=>`${amount>0?'+':'−'}${Number(Math.abs(amount).toFixed
 
 // Presentation only. This layer cannot choose actions, change balances or save.
 export class CardTransition {
- constructor({from,to,held,width,height,outgoing=[],incoming=[],selected,transfers=[],reduced=false,overlay=null,handImage=null}){
-  Object.assign(this,{width,height,selected,reduced,overlay,handImage});this.duration=reduced?180:FORMAT_MS;
+ constructor({from,to,held,width,height,outgoing=[],incoming=[],selected,transfers=[],reduced=false,overlay=null,handImage=null,selectionPoint=null}){
+  Object.assign(this,{width,height,selected,reduced,overlay,handImage,selectionPoint});this.duration=reduced?180:FORMAT_MS;
   this.selectedCard=outgoing.find(card=>card.action===selected);
   this.canvas=surface(width,height);this.g=this.canvas.getContext('2d',{willReadFrequently:true});this.g.imageSmoothingEnabled=false;
   this.from=fromPixels(from,width,height);this.to=fromPixels(to,width,height);this.held=fromPixels(held,width,height);
@@ -64,7 +64,7 @@ export class CardTransition {
   g.strokeStyle='#000';g.strokeRect(.5,.5,w-1,h-1);
   if(this.reduced){
    g.drawImage(this.from,0,0);
-   drawSelectionHand(g,this.handImage,this.selectedCard,w,h,elapsed);
+   drawSelectionHand(g,this.handImage,this.selectedCard,w,h,elapsed,this.selectionPoint);
    this.overlay?.(g,elapsed/this.duration);return this.canvas;
   }
   g.fillStyle='#000';const erase=smooth(segment(elapsed,40,145));
@@ -86,7 +86,7 @@ export class CardTransition {
    const x=Math.round(m.x-glyph.width/2),y=Math.round(m.y-glyph.height/2);g.fillStyle='#000';
    for(const p of glyph.points)if(inkVisible(p.rank,m.reveal,m.erase))g.fillRect(x+p.x,y+p.y,1,1);
   }
-  drawSelectionHand(g,this.handImage,this.selectedCard,w,h,elapsed);
+  drawSelectionHand(g,this.handImage,this.selectedCard,w,h,elapsed,this.selectionPoint);
   this.overlay?.(g,elapsed/this.duration);
   return this.canvas;
  }

@@ -75,6 +75,7 @@ export function CHECK(state) {
   return {id:'check',label:'check',minutes,effects:{},reveal:[],log:null,drainRapture:false,repeatable:true};
 }
 const playable=state=>availableActions({...state,message:null,hesitation:null});
+const needAction=action=>action.need??lab.needIds.includes(action.id);
 const raptureRevealed=state=>Object.hasOwn(state.stats,'rapture');
 // A task that can go either way (like tv) is never a pain card.
 function uncertain(action) {
@@ -86,8 +87,8 @@ const experienced=(state,id)=>state.origin.completed.includes(id)||state.events.
 export const painAmount=(state,action)=>Math.max(raptureCost(state,action),round(taskOutcome(state,action).disquiet-state.values.disquiet));
 // Pain: a certain hurt the narrator can see coming. A surprise becomes obvious once
 // it has been lived through. Never also a need card.
-export const isPain=(state,action)=>!uncertain(action)&&!lab.needIds.includes(action.id)&&
-  (!lab.surprising.includes(action.id)||experienced(state,action.id))&&painAmount(state,action)>0;
+export const isPain=(state,action)=>!uncertain(action)&&!needAction(action)&&
+  (!(action.narratorSeesPain===false||action.narratorSeesPain===undefined&&lab.surprising.includes(action.id))||experienced(state,action.id))&&painAmount(state,action)>0;
 export const painLevel=amount=>amount>=4?3:amount>=2?2:1;
 const threadsOf=id=>String(lab.threads?.[id]||'').split(',').map(t=>t.trim().toLowerCase()).filter(Boolean);
 // Dependency: each finished task strengthens its own thread and any threads given
@@ -114,7 +115,7 @@ export function hand(state) {
   if(lab.faceDownCard&&pool.length)picked.push({...pool[Math.floor(random()*pool.length)],slot:'right',faceDown:state.turnedOver!==turn});
   const needsShow=raptureRevealed(state);
   return {turn,cards:picked.map(card=>{const amount=painAmount(state,card.action);
-    return {...card,faceDown:!!card.faceDown,cost:raptureCost(state,card.action),need:needsShow&&lab.needIds.includes(card.action.id),pain:isPain(state,card.action),level:painLevel(amount)};})};
+    return {...card,faceDown:!!card.faceDown,cost:raptureCost(state,card.action),need:needsShow&&needAction(card.action),pain:isPain(state,card.action),level:painLevel(amount)};})};
 }
 // A reveal inside an intertitle/warning is not an offer. Only the UI, after
 // painting an interactive hand, acknowledges the needs the player could see.
@@ -201,7 +202,7 @@ export function choose(state,action) {
   next.hesitation=null;
   // Need cards left on the table are withdrawn on their chains, taking rapture with them.
   for(const other of withdrawingNeeds(state,selected.id)) {
-    const before=after.rapture;after.rapture=round(Math.max(0,before-Math.max(0,Number(lab.withdrawCost)||0)));
+    const before=after.rapture;after.rapture=round(Math.max(0,before-Math.max(0,Number(other.action.needCost??lab.withdrawCost)||0)));
     const amount=round(after.rapture-before);if(amount)changes.push({stat:'rapture',amount,source:'action',need:other.action.id});
   }
   const cards=intertitleSequence(messageForAction(selected,state));

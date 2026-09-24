@@ -1,16 +1,18 @@
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs';
-import { cardChoices } from './author-schema.mjs';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, cardMarks, presentCards, SAVE_KEY } from './author-core.mjs?v=1.4.3';
+import { cardChoices } from './author-schema.mjs?v=1.4.3';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
 import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
-import {logDateTime} from './story-clock.mjs';
+import {gameClock} from './story-clock.mjs?v=1.4.3';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {phoneScreen,PHONE_FONT} from './phone-screen.mjs';
-import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.2';
+import {phoneScreen,PHONE_FONT} from './phone-screen.mjs?v=1.4.3';
+import {drawChoiceCard,drawChain,drawChainGlyph} from './card-treatments.mjs?v=1.4.3';
+import {drawEventLinks} from './event-links.mjs?v=1.4.3';
+import {CardTransition,playCardTransition,cardLayout,transferCards,FORMAT_MS} from './card-presentation.mjs?v=1.4.3';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
@@ -76,8 +78,14 @@ function quiet(c, out, label, x, y, w, h, action, accessible = label) {
   text(c, label, x + w / 2, y + (h - SMALL_FONT) / 2, SMALL_FONT, { center: true });
   control(out, accessible, x, y, w, h, action);
 }
-function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false } = {}) {
-  if(card){c.fillStyle='#000';c.fillRect(x+1,y+1,w,h);}
+function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false, marks={} } = {}) {
+  if(card){
+    drawChoiceCard(c,{x,y,w,h,label,textLayout,available,pain:marks.pain?'bramble':'none',need:marks.need?'chain':'none',level:marks.level||1,id:action,fontFamily:PHONE_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+    const role=marks.need?' (need)':marks.pain?' (pain)':'';
+    control(out,label+role,x,y,w,h,action,available);
+    Object.assign(out.buttons.at(-1),{pain:marks.pain?'bramble':'none',need:marks.need?'chain':'none'});
+    out.cards?.push({action,x,y,w,h});return;
+  }
   box(c, x, y, w, h);
   if (primary) c.strokeRect(x + 3.5, y + 3.5, w - 7, h - 7);
   font(c,BODY_FONT,!card);const measure=value=>c.measureText(value).width;
@@ -114,14 +122,11 @@ function header(c, out) {
     if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:125,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
     if(cue?.displayAmount&&!heldStats)text(c,signedChange(cue.displayAmount),x,150,SMALL_FONT,{center:true});
   });
-  quiet(c, out, '· ·', width - 45, 29, 40, 24, 'settings', UI.settings);
+  quiet(c, out, '· ·', 8, 29, 40, 24, 'settings', UI.settings);
 }
 const LOG_MARGIN=12,LOG_PADDING=10;
-const dateBar=()=>logDateTime(UI,state.elapsedMinutes);
-function logDateRows(c) {
-  font(c,SMALL_FONT);
-  return wrapText(dateBar(),width-2*(LOG_MARGIN+LOG_PADDING),value=>c.measureText(value).width);
-}
+const dateBar=()=>Object.values(gameClock(UI,state.elapsedMinutes)).filter(Boolean).join(' · ');
+function logDateRows(c) { return []; }
 const logDateHeight=rows=>rows.length?rows.length*(SMALL_FONT+4)+4:0;
 function logRows(c,entries,size) {
   font(c,size);const measure=value=>c.measureText(value).width;
@@ -129,6 +134,8 @@ function logRows(c,entries,size) {
   return entries.flatMap(({id,changes=[]},entry)=>{
     const rows=LOGS[id]?wrapText(LOGS[id],maxWidth,measure):[];
     const badges=changeRows(changes,maxWidth,measure).map(row=>({...row,text:changesText(row.tokens,STAT_LABELS),id,entry,height:Math.max(size,LOG_ICON_SIZE)+8}));
+    for(const row of changeRows(entries[entry].withdrawn||[],maxWidth-LOG_ICON_SIZE-LOG_ICON_GAP,measure))
+      badges.push({...row,chain:true,width:row.width+LOG_ICON_SIZE+LOG_ICON_GAP,text:changesText(row.tokens,STAT_LABELS),id,entry,height:Math.max(size,LOG_ICON_SIZE)+8});
     if(!rows.length&&!badges.length)return [];
     return [...rows.map(row=>({...row,id,entry,autoCenter:rows.length===1,height:size+10})),...badges,{text:'',line:0,entry:null,height:12}];
   });
@@ -146,7 +153,8 @@ function logSheet(c,rows,{y=187,h=140,size=BODY_FONT,bottomInset=12}={}) {
       top:top+offsets[first],layout:TEXT_LAYOUTS.logs?.[group[0].id]||{},autoCenter:group[0].autoCenter});
     positioned.forEach(row=>text(c,row.text,row.x,row.y,size));
   }
-  rows.forEach((row,index)=>{if(!row.tokens)return;const left=x+(w-row.width)/2,y=top+offsets[index];
+  rows.forEach((row,index)=>{if(!row.tokens)return;let left=x+(w-row.width)/2,y=top+offsets[index];
+    if(row.chain){drawChainGlyph(c,left,y,LOG_ICON_SIZE);left+=LOG_ICON_SIZE+LOG_ICON_GAP;}
     row.tokens.forEach(token=>{text(c,token.label,left+token.x,y+(LOG_ICON_SIZE-size)/2,size);if(token.icon)icon(c,token.icon,left+token.x+measure(token.label)+LOG_ICON_GAP,y,LOG_ICON_SIZE);});
   });
   return y+h+3;
@@ -171,7 +179,7 @@ function scene(c, out, node, intro = true) {
   font(c,size,options.bold,options.italic);const measure=value=>c.measureText(value).width,margin=proseMargin(width);
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
-  const bottom = choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
+  const bottom = node.prompt?choiceGrid(4,height-90).top-24:choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
   const capacity = Math.max(1,Math.floor((bottom-178)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
   const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
   const top = Math.max(178, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
@@ -182,6 +190,9 @@ function scene(c, out, node, intro = true) {
   out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
   out.text = blank ? node.sound : pages>1?visibleRows.map(row=>row.text).join('\n'):node.text;
   if(pages>1)text(c,`${page+1} / ${pages}`,width/2,height-47,SMALL_FONT,{center:true});
+  if(!intro&&node.prompt){
+    header(c,out);warningChoices(c,out);return;
+  }
   if (!intro) {
     // Result cards dismiss by tapping the card, just like reading an intertitle.
     control(out, UI.dismiss, 1, 1, width - 2, height - 2, 'dismiss-message');
@@ -195,11 +206,12 @@ function scene(c, out, node, intro = true) {
     return;
   }
   quiet(c, out, '· ·', 14, 29, 44, 32, 'settings', UI.settings);
-  quiet(c, out, UI.skip, width - 146, 29, 132, 32, 'skip-intro');
+  quiet(c, out, UI.skip, width - 218, 31, 122, 24, 'skip-intro');
   if(page<pages-1){control(out,UI.next,1,70,width-2,height-164,'next');quiet(c,out,'→',width-72,height-78,56,56,'next',UI.next);if(page>0)quiet(c,out,'←',14,height-78,56,56,'scene-prev',UI.back);return;}
   if (choices.length) {
     actionPage=Math.min(actionPage,Math.ceil(choices.length/CHOICES_PER_PAGE)-1);
     const shown=choices.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(shown.length,height-90);
+    drawEventLinks(c,grid.cards,{x:width/2,y:Math.min(grid.top-26,top+visibleRows.length*leading+18)});
     shown.forEach((choice,i)=>{const {x,y}=grid.cell(i);button(c,out,choice.label,x,y,grid.w,grid.h,`choice:${choice.id}`,{available:!!choice.label.trim(),card:true});});
     if(choices.length>CHOICES_PER_PAGE) quiet(c,out,'more choices →',width-174,height-72,158,48,'options-next');
   } else if (node.begin) {
@@ -210,20 +222,32 @@ function scene(c, out, node, intro = true) {
   }
   if (page>0||state.trail.length) quiet(c, out, '←', 14, height - 78, 56, 56, page>0?'scene-prev':'back', UI.back);
 }
+function warningChoices(c,out){
+  const grid=choiceGrid(4,height-90),parent={x:(width-grid.w)/2,y:(grid.cell(0).y+grid.cell(1).y)/2,w:grid.w,h:grid.h};
+  const action=ACTIONS.find(a=>a.id===state.hesitation?.action);
+  drawEventLinks(c,grid.cards.slice(2),{x:width/2,y:parent.y+parent.h});
+  drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'bramble',fontFamily:PHONE_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+  out.cards.push({...parent,action:'event-parent'});
+  [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=grid.cell(i+2);button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
+}
 function main(c, out) {
   header(c, out);
   const entry=statusEntry(state);
-  const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS)].filter(Boolean).join('\n');
+  const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS),changesText(entry.withdrawn||[],STAT_LABELS)].filter(Boolean).join('\n');
   const allRows=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null),prose=allRows.filter(row=>!row.tokens),rows=prose.slice(0,3);
   if(prose.length>3)rows[2]={...rows[2],text:rows[2].text+'…'};
   rows.push(...allRows.filter(row=>row.tokens));
-  const logBottom=logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
+
   const allActions = visibleActions(state), pages = Math.max(1,Math.ceil(allActions.length/CHOICES_PER_PAGE));
   actionPage = Math.min(actionPage,pages-1);
   const actions = allActions.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(actions.length,height-94);
   const enabled = new Set(availableActions(state).map(action => action.id));
+  for(const [i,action] of actions.entries())if(enabled.has(action.id)&&cardMarks(state,action).need){
+    const at=grid.cell(i);drawChain(c,{x:headerStatX('rapture',width),y:143},{...at,routeX:at.x<width/2?at.x-10:at.x+at.w+10},performance.now(),0,prefs.reduceMotion);
+  }
+  logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
   actions.forEach((action, i) => {
-    const {x,y}=grid.cell(i);button(c, out, action.label, x,y,grid.w,grid.h,action.id, { available: enabled.has(action.id),textLayout:TEXT_LAYOUTS.actions?.[action.id]||{},card:true });
+    const {x,y}=grid.cell(i);button(c, out, action.label, x,y,grid.w,grid.h,action.id, { available: enabled.has(action.id),textLayout:TEXT_LAYOUTS.actions?.[action.id]||{},card:true,marks:enabled.has(action.id)?cardMarks(state,action):{} });
     // The authored vine artwork will use this same computed loss as the warnings.
     out.buttons.at(-1).raptureCost=raptureCost(state,action);
   });
@@ -235,8 +259,8 @@ function draw() {
   c.canvas.width = width; c.canvas.height = height; box(c, 0, 0, width, height);
   const out = { buttons: [], cards: [], text: '', scene: null };
   // Plain classic window chrome, shared with the approved granola study.
-  c.strokeStyle='#000';c.beginPath();c.moveTo(1,26.5);c.lineTo(width-1,26.5);c.stroke();
-  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,width/2-85,1);}
+  c.strokeStyle='#000';c.beginPath();c.moveTo(1,43.5);c.lineTo(width-1,43.5);c.stroke();
+  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,Math.max(0,width/2-180),1);}
   text(c,'A L I G N M E N T',width/2,7,11,{bold:true,center:true});
   if (editorPreview) {
     const {type,id}=editorPreview;
@@ -254,14 +278,18 @@ function draw() {
   return { pixels: tintHungerNumber(monochrome(c,width,height),width,height,out.hungerNumber), layout: out };
 }
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
+function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(3,rect.top+3)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
 function installControls() {
+  const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
+  if(!editorPreview&&screen==='main'&&!state.message&&!currentWarning(state)){const next=presentCards(state,layout.buttons.filter(b=>b.need==='chain').map(b=>b.action));if(next!==state){state=next;save();}}
   $('controls').replaceChildren();
   for (const b of layout.buttons) {
     const el = document.createElement('button'); el.textContent = b.label; el.setAttribute('aria-label', b.label);
     el.dataset.action = b.action; el.disabled = !b.available;
     if(b.raptureCost!==undefined){el.dataset.raptureCost=String(b.raptureCost);el.dataset.undesirable=String(b.raptureCost>0);}
     Object.assign(el.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
-    el.onclick = () => activate(b.action); $('controls').append(el);
+    if(b.pain)el.dataset.pain=b.pain;if(b.need)el.dataset.need=b.need;
+    el.onclick = event => activate(b.action,event.detail?{x:(event.clientX-canvas.getBoundingClientRect().left)*width/canvas.getBoundingClientRect().width,y:(event.clientY-canvas.getBoundingClientRect().top)*height/canvas.getBoundingClientRect().height}:null); $('controls').append(el);
   }
   $('narration').textContent = [layout.text, ...presentedStats(state,HUNGER_INDICATOR).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
 }
@@ -293,7 +321,7 @@ async function dissolve(from, to, id) {
     requestAnimationFrame(tick);
   });
 }
-async function activate(action) {
+async function activate(action,selectionPoint=null) {
   if (busy) return;
   if(editorPreview)return;
   if(action==='scene-prev'){textPage=Math.max(0,textPage-1);redraw();return;}
@@ -338,7 +366,7 @@ async function activate(action) {
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
-        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand}),context:ctx,startedAt,isCurrent:()=>id===animationId});
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand,selectionPoint}),context:ctx,startedAt,isCurrent:()=>id===animationId});
     }else await dissolve(from,frame.pixels,id);
   }finally {
     if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
@@ -365,7 +393,7 @@ try {
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
   await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/check-hand.png';});
-  resize(); save(); $('boot').remove(); addEventListener('resize', resize);
+  resize(); save(); $('boot').remove(); addEventListener('resize', resize);addEventListener('scroll',positionClock,{passive:true});
   window.visualViewport?.addEventListener('resize',resize);
   new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);
   addEventListener('pagehide', pause); addEventListener('alignmentpause', pause);
@@ -399,7 +427,7 @@ try {
     fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
-    const {mountEditor}=await import('./editor-client.mjs');
+    const {mountEditor}=await import('./editor-client.mjs?v=1.4.3');
     editor=await mountEditor({
       current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:{type:'logs',id:state.logs.at(-1)||'opening'}),
       apply:(doc,{temporary=false}={})=>{stopStatCue();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},

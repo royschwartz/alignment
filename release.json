@@ -1,5 +1,5 @@
 {
-  "version": "1.4.2",
+  "version": "1.4.3",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 17,
+  "versionCode": 18,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,
@@ -26,5 +26,10 @@
   "selectionHoldMs": 650,
   "cardTransitionMs": 860,
   "selectionOverlapsTransition": true,
-  "statusPreservesTurnChanges": true
+  "statusPreservesTurnChanges": true,
+  "uniformChoiceSize": true,
+  "persistentClock": "top-right-date-and-minutes",
+  "painAndNeedMarks": true,
+  "eventChoiceLinks": true,
+  "selectionHandScale": 0.8
 }

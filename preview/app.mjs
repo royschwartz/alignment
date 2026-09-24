@@ -1,18 +1,19 @@
-import {phoneScreen} from './phone-screen.mjs';
+import {phoneScreen} from './phone-screen.mjs?v=1.4.3';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs';
-import { cardChoices } from './author-schema.mjs';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.3';
+import { cardChoices } from './author-schema.mjs?v=1.4.3';
 import { composeFrame, monochrome } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
 import {STAT_ICONS,headerStatX,signedChange} from './game-stats.mjs';
 import {logEntries,statusEntry,eventChanges,changesText,changeRows,logPages,LOG_ICON_SIZE,LOG_ICON_GAP} from './stat-log.mjs?v=1.4.2';
-import {logDateTime} from './story-clock.mjs';
+import {gameClock} from './story-clock.mjs?v=1.4.3';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback} from './attribute-feedback.mjs';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.2';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.3';
+import {drawEventLinks} from './event-links.mjs?v=1.4.3';
 // Display lab: a side copy of the game for trying pain/need card treatments.
-import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs';
+import {drawChoiceCard,drawThread,drawChain,drawChainGlyph,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.3';
 import {mountLab,lab,showDeal} from './lab.mjs';
 import {loadCardPhotos,drawPhotoCard,drawPhotoBack} from './photo-cards.mjs';
 import {STORY_ENABLED,storyDate} from './first-nights.mjs';
@@ -121,15 +122,12 @@ function header(c, out) {
     if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:125,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
     if(cue?.displayAmount&&!heldStats)text(c,signedChange(cue.displayAmount),x,150,SMALL_FONT,{center:true});
   });
-  quiet(c, out, '· ·', width - 45, 29, 40, 24, 'settings', UI.settings);
+  quiet(c, out, '· ·', 8, 29, 40, 24, 'settings', UI.settings);
   if(STORY_ENABLED)text(c,`portions: ${state.story.portions}`,16,170,SMALL_FONT);
 }
 const LOG_MARGIN=12,LOG_PADDING=10;
-const dateBar=()=>logDateTime(STORY_ENABLED?storyDate(UI,state.elapsedMinutes):UI,state.elapsedMinutes);
-function logDateRows(c) {
-  font(c,SMALL_FONT);
-  return wrapText(dateBar(),width-2*(LOG_MARGIN+LOG_PADDING),value=>c.measureText(value).width);
-}
+const dateBar=()=>Object.values(gameClock(UI,state.elapsedMinutes)).filter(Boolean).join(' · ');
+function logDateRows(c) { return []; }
 const logDateHeight=rows=>rows.length?rows.length*(SMALL_FONT+4)+4:0;
 function logRows(c,entries,size) {
   font(c,size);const measure=value=>c.measureText(value).width;
@@ -182,7 +180,7 @@ function scene(c, out, node, intro = true) {
   font(c,size,options.bold,options.italic);const measure=value=>c.measureText(value).width,margin=proseMargin(width);
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
-  const bottom = choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
+  const bottom = node.prompt?choiceGrid(4,height-90).top-24:choices.length?choiceGrid(choices.length,height-90).top-24:height-110;
   const capacity = Math.max(1,Math.floor((bottom-178)/leading)), pages=Math.max(1,Math.ceil(rows.length/capacity));
   const page=Math.min(textPage,pages-1), visibleRows=rows.slice(page*capacity,(page+1)*capacity);
   const top = Math.max(178, Math.min(bottom-visibleRows.length*leading,Math.round(height * .43 - visibleRows.length * leading / 2)));
@@ -194,8 +192,7 @@ function scene(c, out, node, intro = true) {
   out.text = blank ? node.sound : pages>1?visibleRows.map(row=>row.text).join('\n'):node.text;
   if(pages>1)text(c,`${page+1} / ${pages}`,width/2,height-47,SMALL_FONT,{center:true});
   if (!intro&&node.prompt) {
-    header(c,out);const grid=choiceGrid(2,height-90);
-    [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([action,label],i)=>{const {x,y}=grid.cell(i);button(c,out,label,x,y,grid.w,grid.h,action,{card:true});});
+    header(c,out);warningChoices(c,out);
     return;
   }
   if (!intro) {
@@ -211,11 +208,12 @@ function scene(c, out, node, intro = true) {
     return;
   }
   quiet(c, out, '· ·', 14, 29, 44, 32, 'settings', UI.settings);
-  quiet(c, out, UI.skip, width - 146, 29, 132, 32, 'skip-intro');
+  quiet(c, out, UI.skip, width - 218, 31, 122, 24, 'skip-intro');
   if(page<pages-1){control(out,UI.next,1,70,width-2,height-164,'next');quiet(c,out,'→',width-72,height-78,56,56,'next',UI.next);if(page>0)quiet(c,out,'←',14,height-78,56,56,'scene-prev',UI.back);return;}
   if (choices.length) {
     actionPage=Math.min(actionPage,Math.ceil(choices.length/CHOICES_PER_PAGE)-1);
     const shown=choices.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(shown.length,height-90);
+    drawEventLinks(c,grid.cards,{x:width/2,y:Math.min(grid.top-26,top+visibleRows.length*leading+18)});
     shown.forEach((choice,i)=>{const {x,y}=grid.cell(i);button(c,out,choice.label,x,y,grid.w,grid.h,`choice:${choice.id}`,{available:!!choice.label.trim(),card:true});});
     if(choices.length>CHOICES_PER_PAGE) quiet(c,out,'more choices →',width-174,height-72,158,48,'options-next');
   } else if (node.begin) {
@@ -226,10 +224,18 @@ function scene(c, out, node, intro = true) {
   }
   if (page>0||state.trail.length) quiet(c, out, '←', 14, height - 78, 56, 56, page>0?'scene-prev':'back', UI.back);
 }
+function warningChoices(c,out){
+  const grid=choiceGrid(4,height-90),parent={x:(width-grid.w)/2,y:(grid.cell(0).y+grid.cell(1).y)/2,w:grid.w,h:grid.h};
+  const action=ACTIONS.find(a=>a.id===state.hesitation?.action);
+  drawEventLinks(c,grid.cards.slice(2),{x:width/2,y:parent.y+parent.h});
+  drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'bramble',fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
+  out.cards.push({...parent,action:'event-parent'});
+  [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=grid.cell(i+2);button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
+}
 // The existing deal uses the approved close portrait-card format.
 let anim=null;
 function handGeometry() {
-  const dealt=hand(state),grid=cardLayout(dealt.cards.length,width,height,`${state.randomSeed}:${dealt.turn}`);
+  const dealt=hand(state),grid=cardLayout(dealt.cards.length,width,height,`${state.randomSeed}:${dealt.turn}`,height-94);
   return {...grid,slots:Object.fromEntries(dealt.cards.map((card,i)=>[card.slot,grid.cell(i)]))};
 }
 // Roy, September 24: the hand appears only as brief card-selection feedback.
@@ -263,7 +269,7 @@ function main(c, out) {
   const cards=dealt.cards.map(card=>({...card,...size.slots[card.slot],painLook:card.pain&&raptureShown?(lab.cardDesign==='photo'?'print-wire':lab.pain):'none',needLook:card.need?(lab.cardDesign==='photo'?'chain':lab.need):'none'}));
   // Chains hang from the heart and pass behind the notepad.
   for(const card of cards)if(isTethered(card.needLook)&&anim?.kind!=='deal') {
-    const at=placement(card,size);(card.needLook==='chain'?drawChain:drawThread)(c,heart,{x:at.x,y:at.y,w:size.w*at.k,routeX:Math.min(width-12,card.x+size.w+6)},now,sceneSince,prefs.reduceMotion);
+    const at=placement(card,size);(card.needLook==='chain'?drawChain:drawThread)(c,heart,{x:at.x,y:at.y,w:size.w*at.k,routeX:card.x<width/2?card.x-10:card.x+size.w+10},now,sceneSince,prefs.reduceMotion);
   }
   const entry=statusEntry(state);
   const log=[LOGS[entry.id]||'',changesText(entry.changes,STAT_LABELS),entry.withdrawn?.length?`${changesText(entry.withdrawn,STAT_LABELS)} (withdrawn)`:''].filter(Boolean).join('\n');
@@ -277,6 +283,7 @@ function main(c, out) {
     const lines=wrapText(value,width-2*margin,measure),leading=STORY_FONT+10;
     const bounds={x:margin,y:196,w:width-2*margin,h:Math.max(60,size.top-220)};
     placeText(lines,{measure,bounds,leading,fontSize:STORY_FONT,top:196+Math.max(0,(bounds.h-lines.length*leading)/2),layout:{},autoCenter:lines.length===1,scaleWidth:width,scaleHeight:height}).forEach(row=>text(c,row.text,row.x,row.y,STORY_FONT));
+    drawEventLinks(c,cards,{x:width/2,y:Math.min(size.top-26,196+Math.max(0,(bounds.h-lines.length*leading)/2)+lines.length*leading+18)});
     out.scene={id:'hole-standing',text:value,kind:'choice',page:0,pages:1};
   }else logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
   for(const card of cards)if(!placement(card,size).k||placement(card,size).k===1)drawDealt(c,card,size,now);
@@ -299,8 +306,8 @@ function draw() {
   c.canvas.width = width; c.canvas.height = height; box(c, 0, 0, width, height);
   const out = { buttons: [], cards:[], text: '', scene: null };
   // Plain classic window chrome, shared with the approved granola study.
-  c.strokeStyle='#000';c.beginPath();c.moveTo(1,26.5);c.lineTo(width-1,26.5);c.stroke();
-  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,width/2-85,1);}
+  c.strokeStyle='#000';c.beginPath();c.moveTo(1,43.5);c.lineTo(width-1,43.5);c.stroke();
+  for(let y=5;y<=21;y+=3){c.fillStyle='#000';c.fillRect(5,y,width/2-80,1);c.fillRect(width/2+80,y,Math.max(0,width/2-180),1);}
   text(c,'A L I G N M E N T',width/2,7,11,{bold:true,center:true});
   if (editorPreview) {
     const {type,id}=editorPreview;
@@ -324,7 +331,9 @@ function draw() {
   return { pixels: tintHungerNumber(raster,width,height,out.hungerNumber), layout: out };
 }
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
+function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(3,rect.top+3)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
 function installControls() {
+  const clock=gameClock(UI,state.elapsedMinutes);$('story-date').textContent=clock.date;$('story-time').textContent=clock.time;positionClock();
   // A need is eligible only once its marked, interactive card has been painted.
   if(screen==='main'&&!editorPreview&&!document.hidden&&!busy){
     const next=presentHand(state,layout.buttons.filter(b=>b.need&&b.need!=='none').map(b=>b.action));
@@ -337,7 +346,7 @@ function installControls() {
     if(b.raptureCost!==undefined){el.dataset.raptureCost=String(b.raptureCost);el.dataset.undesirable=String(b.raptureCost>0);}
     if(b.choiceLocked)el.dataset.choiceLocked='true';
     Object.assign(el.style, { left: `${b.x}px`, top: `${b.y}px`, width: `${b.w}px`, height: `${b.h}px` });
-    el.onclick = () => activate(b.action); $('controls').append(el);
+    el.onclick = event => activate(b.action,event.detail?{x:(event.clientX-canvas.getBoundingClientRect().left)*width/canvas.getBoundingClientRect().width,y:(event.clientY-canvas.getBoundingClientRect().top)*height/canvas.getBoundingClientRect().height}:null); $('controls').append(el);
   }
   $('narration').textContent = [layout.text, ...presentedStats(state,HUNGER_INDICATOR).map(([id,value])=>`${STAT_LABELS[id]} ${Math.round(value*100)/100}`)].filter(Boolean).join('\n');
 }
@@ -377,7 +386,7 @@ async function play(kind,ids,duration) {
     const frame=draw();pixels=frame.pixels;paint(pixels);if(p<1)setTimeout(step,30);else resolve();};step();});
   if(token===animationId){anim=null;busy=false;}
 }
-async function activate(action) {
+async function activate(action,selectionPoint=null) {
   if (busy) return;
   if(editorPreview)return;
   if(action==='scene-prev'){textPage=Math.max(0,textPage-1);redraw();return;}
@@ -422,7 +431,7 @@ async function activate(action) {
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
-        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand}),context:ctx,startedAt,isCurrent:()=>id===animationId});
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand,selectionPoint}),context:ctx,startedAt,isCurrent:()=>id===animationId});
     }else await dissolve(from,frame.pixels,id);
   }finally {
     if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
@@ -479,7 +488,7 @@ try {
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
   $('restart').onclick = restart;
   await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/check-hand.png';});
-  resize(); save(); $('boot').remove(); addEventListener('resize', resize);
+  resize(); save(); $('boot').remove(); addEventListener('resize', resize);addEventListener('scroll',positionClock,{passive:true});
   window.visualViewport?.addEventListener('resize',resize);
   new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);
   addEventListener('pagehide', pause); addEventListener('alignmentpause', pause);

@@ -4,6 +4,7 @@ import { cardChoices } from './author-schema.mjs';
 import { restoreGame as restoreLegacy, BASELINE as LEGACY_BASELINE, TIME_RATES, TASK_MINUTES, advanceTaskTime } from './author-legacy.mjs';
 import {STAT_KEYS,LOG_STAT_KEYS} from './game-stats.mjs';
 import {resolveOutcome,seedFrom} from './action-outcomes.mjs';
+import {isNeed,needCost,painAmount,painLevel} from './card-rules.mjs';
 export { TIME_RATES, TASK_MINUTES, advanceTaskTime };
 // Retain Choice's established starting value from the original game; it stays hidden until revealed.
 export const BASELINE = Object.freeze({...LEGACY_BASELINE,choice:38});
@@ -55,11 +56,21 @@ function taskReceipt(state,action) {
 }
 export const taskOutcome = (state,action) => taskReceipt(state,action).after;
 export const raptureCost = (state,action) => round(Math.max(0,state.values.rapture-taskOutcome(state,action).rapture));
+export function cardMarks(state,action) {
+  const revealed=Object.hasOwn(state.stats,'rapture'),amount=painAmount(state,action,taskOutcome(state,action));
+  return {need:revealed&&isNeed(action),pain:revealed&&amount>0,level:painLevel(amount)};
+}
+export function presentCards(state,ids) {
+  if(state.phase!=='playing'||state.message||state.hesitation?.visible)return state;
+  const allowed=availableActions(state).filter(a=>cardMarks(state,a).need).map(a=>a.id);
+  const presentedNeeds={turn:state.events.length,ids:ids.filter(id=>allowed.includes(id))};
+  return JSON.stringify(state.presentedNeeds)===JSON.stringify(presentedNeeds)?state:{...state,presentedNeeds};
+}
 const warningCount = () => CHOICE_WARNINGS?.cost ? 2 : 1;
 export function currentWarning(state) {
   if(!state.hesitation?.visible||!CHOICE_WARNINGS)return null;
   const {stage,cost}=state.hesitation,id=CHOICE_WARNINGS[stage===1?'question':'cost'];
-  return {id,text:(MESSAGES[id]||'').replace(/\bX\b/g,String(cost)),bold:stage===1,...MESSAGE_LINKS[id],revealsRapture:stage===warningCount()};
+  return {id,text:(MESSAGES[id]||'').replace(/\bX\b/g,String(cost)),bold:stage===1,...MESSAGE_LINKS[id],prompt:warningCount()===1,revealsRapture:stage===warningCount()};
 }
 function intertitleSequence(message) {
   const cards=[];let cursor=message;
@@ -113,16 +124,27 @@ export function choose(state,action) {
     else {next.message=null;if(event?.revealAtEnd)event.resultsDismissed=true;}
     Object.assign(next,totals(next.origin,next.events,next.phase));return next;
   }
-  const selected=availableActions(state).find(a=>a.id===action); if(!selected)return state;
-  const {after,changes}=taskReceipt(state,selected),cost=round(Math.max(0,state.values.rapture-after.rapture));
-  if(CHOICE_WARNINGS&&selected.warnRaptureLoss!==false&&cost>0) {
+  let confirmed=false;
+  if(action==='warn-no'){if(!state.hesitation?.visible)return state;next.hesitation=null;return next;}
+  if(action==='warn-yes'){if(!state.hesitation?.visible)return state;action=state.hesitation.action;confirmed=true;}
+  const selected=availableActions(confirmed?{...state,hesitation:null}:state).find(a=>a.id===action); if(!selected)return state;
+  const {after,changes}=taskReceipt(state,selected),cost=round(warningCount()===1?painAmount(state,selected,after):Math.max(0,state.values.rapture-after.rapture));
+  if(!confirmed&&CHOICE_WARNINGS&&selected.warnRaptureLoss!==false&&cost>0&&!(warningCount()===1&&state.painWarned)) {
     const pending=state.hesitation,stage=pending?.action===selected.id&&pending.cost===cost?pending.stage:0;
     if(stage<warningCount()){next.hesitation={action:selected.id,stage:stage+1,cost,visible:true};
+      if(warningCount()===1)next.painWarned=true;
       if(stage+1===warningCount()){if(!next.origin.revealed.includes('rapture'))next.origin.revealed.push('rapture');Object.assign(next,totals(next.origin,next.events,next.phase));}
       return next;
     }
   }
   next.hesitation=null;
+  // Only a marked need the player actually saw can be withdrawn. Warnings and
+  // reading never expose a card, charge rapture, or replay a saved charge.
+  if(state.presentedNeeds?.turn===state.events.length)for(const other of availableActions({...state,hesitation:null})) {
+    if(other.id===selected.id||!isNeed(other)||!state.presentedNeeds.ids.includes(other.id))continue;
+    const before=after.rapture;after.rapture=round(Math.max(0,before-needCost(other)));
+    if(after.rapture!==before)changes.push({stat:'rapture',amount:round(after.rapture-before),source:'action',need:other.id});
+  }
   const cards=intertitleSequence(messageForAction(selected,state));
   const moneyIntroduction=introducesMoney(selected,state)&&cards.length>0;
   // Queue story-clock passages on the committed receipt, after this task's own
@@ -165,7 +187,7 @@ export function reconcileGame(state) {
   if(next.message&&!Object.hasOwn(MESSAGES,next.message))next.message=null;
   if(next.message&&!MESSAGES[next.message]?.trim()&&!MESSAGE_LINKS[next.message]?.next&&!MESSAGE_LINKS[next.message]?.log)next.message=null;
   const pending=next.hesitation,action=pending&&ACTIONS.find(a=>a.id===pending.action);
-  if(pending&&(!CHOICE_WARNINGS||!action||action.warnRaptureLoss===false||!availableActions({...next,hesitation:null}).some(a=>a.id===action.id)||raptureCost(next,action)!==pending.cost))next.hesitation=null;
+  if(pending&&(!CHOICE_WARNINGS||!action||action.warnRaptureLoss===false||!availableActions({...next,hesitation:null}).some(a=>a.id===action.id)||round(warningCount()===1?painAmount(next,resolveOutcome(next,action),taskOutcome(next,action)):raptureCost(next,action))!==pending.cost))next.hesitation=null;
   if(next.hesitation)next.hesitation.stage=Math.min(next.hesitation.stage,warningCount());
   if(next.hesitation?.stage===warningCount()&&!next.origin.revealed.includes('rapture')){next.origin.revealed.push('rapture');Object.assign(next,totals(next.origin,next.events,next.phase));}
   const event=next.events.at(-1);
@@ -228,7 +250,9 @@ export function restoreGame(raw) {
     if(pending&&(v.phase!=='playing'||v.message||result.completed.includes(pending.action)&&!ACTIONS.find(a=>a.id===pending.action)?.repeatable&&!v.events.some(e=>e.id===pending.action&&e.repeatable)))return null;
     // Add the dormant stat only after validating the original four-stat receipt totals.
     const origin=clone(o),events=clone(v.events);origin.values.choice??=BASELINE.choice;for(const e of events)e.delta.choice??=0;
-    return reconcileGame({version:SAVE_VERSION,script:SCRIPT_ID,randomSeed:v.randomSeed??seedFrom(JSON.stringify(o.values)),phase:v.phase,node:v.node,trail:[...v.trail],origin,events,...totals(origin,events,v.phase),message:v.message,hesitation:pending?{action:pending.action,stage:pending.stage,cost:pending.cost,visible:pending.visible}:null});
+    const presentedNeeds=v.presentedNeeds&&Number.isInteger(v.presentedNeeds.turn)&&v.presentedNeeds.turn>=0&&list(v.presentedNeeds.ids)
+      ?{turn:v.presentedNeeds.turn,ids:[...new Set(v.presentedNeeds.ids)]}:undefined;
+    return reconcileGame({...(presentedNeeds?{presentedNeeds}:{}),...(v.painWarned===true?{painWarned:true}:{}),version:SAVE_VERSION,script:SCRIPT_ID,randomSeed:v.randomSeed??seedFrom(JSON.stringify(o.values)),phase:v.phase,node:v.node,trail:[...v.trail],origin,events,...totals(origin,events,v.phase),message:v.message,hesitation:pending?{action:pending.action,stage:pending.stage,cost:pending.cost,visible:pending.visible}:null});
   }catch{return null;}
 }
 export function serializeGame(state) {const raw=JSON.stringify(state);if(!restoreGame(raw))throw new Error('Invalid game state');return raw;}

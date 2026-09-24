@@ -23,3 +23,6 @@ input[type=checkbox] { width: 24px; height: 24px; accent-color: #000; vertical-a
 .primary { border: 3px double #000; font-weight: bold; }
 @media (max-width: 600px) { #desktop { padding: 0; background: #fff; } #stack { box-shadow: none; } }
 @media (max-height: 660px) { #desktop { align-items: flex-start; } }
+
+#story-clock { position: fixed; top: 3px; right: 10px; z-index: 2; pointer-events: none; background: #fff; padding: 0 2px; text-align: right; font-size: 12px; line-height: 17px; font-variant-numeric: tabular-nums; }
+#story-clock span { display: block; }

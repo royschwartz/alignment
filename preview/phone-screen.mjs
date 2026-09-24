@@ -13,16 +13,18 @@ const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),1
 
 // The preview's portrait cards, shared by choices, palettes and PNG exports.
 export function cardLayout(count,width,height,key='',bottom=height-130){
-  const columns=count===3?3:Math.min(2,Math.max(1,count)),rows=Math.max(1,Math.ceil(count/columns));
-  const k=width/415,gap=Math.round((4+hash(seed(key))*4)*k),margin=Math.round(22*k);
-  const w=Math.floor((width-2*margin-gap*(columns-1))/columns);
-  let cardWidth=columns===1?Math.floor((width-2*margin-gap)/2):w;
-  const h=Math.round(Math.min(cardWidth*252/182,(bottom-Math.max(242,270*k)-(rows-1)*10*k)/rows));
-  cardWidth=Math.min(cardWidth,Math.floor(h*182/252));
-  const top=bottom-rows*h-(rows-1)*10*k;
+  count=Math.min(4,Math.max(0,Math.floor(count)));
+  const columns=Math.min(2,Math.max(1,count)),rows=Math.max(1,Math.ceil(count/2));
+  const k=width/415,gap=Math.round(22*k),margin=Math.round(22*k),offset=Math.ceil(7*k);
+  // Reserve a complete two-by-two deal when choosing the size. Neither the
+  // number of choices, the random seed nor the screen's footer can resize it.
+  const maxWidth=Math.floor((width-2*margin-gap)/2);
+  const maxHeight=Math.floor((height-130-Math.max(242,270*k)-gap-2*offset)/2);
+  const cardWidth=Math.min(maxWidth,Math.floor(maxHeight*182/252)),h=Math.round(cardWidth*252/182);
+  const top=bottom-rows*h-(rows-1)*gap-offset;
   const cards=Array.from({length:count},(_,i)=>({
     x:Math.round((width-(columns*cardWidth+(columns-1)*gap))/2+(i%columns)*(cardWidth+gap)),
-    y:Math.round(top+Math.floor(i/columns)*(h+10*k)+(i%2?1:-1)*(3+hash(seed(key)+Math.floor(i/2))*4)*k),
+    y:Math.round(top+Math.floor(i/columns)*(h+gap)+(i%2?1:-1)*(3+hash(seed(key)+Math.floor(i/2))*4)*k),
     w:cardWidth,h,flashSeed:seed(`${key}:${i}`),
   }));
   return {w:cardWidth,h,top:Math.min(top,...cards.map(c=>c.y)),cards,cell:i=>cards[i]};

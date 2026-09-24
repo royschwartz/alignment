@@ -1,5 +1,6 @@
 import {cardEntries as entries,incomingLinks,moveCard,duplicateCard,removalReason,removeCard} from './editor-model.mjs';
-import {cardChoices,validateDocument} from './author-schema.mjs';
+import {isNeed,needCost} from './card-rules.mjs';
+import {cardChoices,validateDocument} from './author-schema.mjs?v=1.4.3';
 import {storyTime,DEFAULT_START_HOUR} from './story-clock.mjs';
 const $=id=>document.getElementById(id);
 const h=(tag,attrs={},...children)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(k==='class')e.className=v;else if(k in e)e[k]=v;else e.setAttribute(k,v);}for(const c of children.flat())if(c!==null&&c!==undefined)e.append(typeof c==='string'?document.createTextNode(c):c);return e;};
@@ -77,9 +78,9 @@ export async function mountEditor(bridge) {
         selectField('Starting time',draft.ui.logStartHour??String(DEFAULT_START_HOUR),Array.from({length:24},(_,hour)=>[String(hour),storyTime(0,hour)]),v=>draft.ui.logStartHour=v),
         field('Starting money',draft.startingValues?.money??900,v=>{draft.startingValues??={};draft.startingValues.money=Number(v);},{type:'number'}),
         h('p',{class:'writer-help'},'Starting money applies to new playthroughs.'),
-        h('p',{class:'writer-help'},'The date and time appear at the top left of the log. The clock advances with task durations and shows the current hour without minutes.'));
+        h('p',{class:'writer-help'},'The date and time stay at the top right. The clock advances by the full task duration, including events longer than one hour.'));
       if(s.type==='messages'){const link=()=>{draft.messageLinks??={};return draft.messageLinks[s.id]??={};};body.append(h('div',{class:'writer-row'},check('bold',draft.messageLinks?.[s.id]?.bold,v=>link().bold=v),check('italic',draft.messageLinks?.[s.id]?.italic,v=>link().italic=v)));}}
-    if(s.type==='messages'&&Object.values(draft.choiceWarnings||{}).includes(s.id))body.append(h('p',{class:'writer-help'},!draft.choiceWarnings.cost?'Shown before spending rapture. The heart appears without charging anything. Tap to return, then select the choice again to complete it.':s.id===draft.choiceWarnings.cost?'Second warning. X becomes the calculated rapture cost. Tapping brings you back to the choices.':'First warning for a choice that loses rapture. Tapping brings you back to the choices.'));
+    if(s.type==='messages'&&Object.values(draft.choiceWarnings||{}).includes(s.id))body.append(h('p',{class:'writer-help'},!draft.choiceWarnings.cost?'Shown on the first pain choice. The heart appears without charging anything. Yes proceeds; no returns to the choices.':s.id===draft.choiceWarnings.cost?'Second warning. X becomes the calculated rapture cost. Tapping brings you back to the choices.':'First warning for a choice that loses rapture. Tapping brings you back to the choices.'));
     if(s.type==='messages'&&s.id===draft.firstPurchaseMessage)body.append(h('p',{class:'writer-help'},'Plays on the first purchase anywhere in the game. Tapping this first intertitle reveals the money icon with a brief blink, then continues to the next linked intertitle.'));
     if(s.type==='messages')for(const event of draft.scheduledEvents||[])if(event.message===s.id)body.append(
       heading('Scheduled passage'),check('Play at the story hour',event.enabled!==false,v=>event.enabled=v),
@@ -232,7 +233,8 @@ export async function mountEditor(bridge) {
     body.append(check('Allow a stat-only log while writing',action.statOnlyLog===true,v=>action.statOnlyLog=v));
     if(draft.requireActionLogs)body.append(h('p',{class:'writer-help'},'A task needs your log phrase, or permission above to use its automatic stat changes alone. Empty outcome text is skipped.'));
     const details=h('details',{},h('summary',{},'time & stat changes'),field('Duration (minutes)',action.minutes,v=>action.minutes=Number(v),{type:'number'}));
-    details.append(check('Time spent reduces rapture',action.drainRapture!==false,v=>action.drainRapture=v),check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v),h('p',{class:'writer-help'},'Hunger still grows with time. Choices with a net rapture loss are marked for thorns. The warning can be switched off for each choice.'));
+    details.append(check('Time spent reduces rapture',action.drainRapture!==false,v=>action.drainRapture=v),check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v),h('p',{class:'writer-help'},'Durations can exceed one hour. Hunger still grows with time. Certain, anticipated losses have thorns; random outcomes can remain unmarked.'));
+    details.append(check('Need card',isNeed(action),v=>action.need=v),field('Rapture lost if this need is passed over',needCost(action),v=>action.needCost=Number(v),{type:'number'}),check('Narrator sees the pain coming',action.narratorSeesPain!==false,v=>action.narratorSeesPain=v));
     details.append(h('p',{class:'writer-help'},'Direct rapture, money, disquiet and choice changes appear automatically beside your log phrase. Rapture lost through time and all numeric hunger changes stay out of the log. The hunger indicator is held back until its introduction.'));
     for(const key of ['rapture','hunger','disquiet','money','choice'])details.append(field(`${key} change`,action.effects[key]||0,v=>{const n=Number(v);if(n)action.effects[key]=n;else delete action.effects[key];},{type:'number'}));
     for(const key of ['rapture','hunger','money','disquiet','choice'])details.append(check(`Reveal ${key}`,action.reveal.includes(key),v=>{action.reveal=action.reveal.filter(k=>k!==key);if(v)action.reveal.push(key);}));
