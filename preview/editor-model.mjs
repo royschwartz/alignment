@@ -7,22 +7,30 @@ export const cardEntries = doc => [
 export function incomingLinks(doc,{type,id}) {
   const links=[];
   const add=(type,id,label)=>links.push({type,id,label});
+  if(type==='logs'&&Object.values(doc.storyRules?.openingFlow?.firstNight?.appendices||{}).includes(id))add('actions','sleep','first-night appended phrase');
   if(type==='intro') for(const n of doc.intro) {
     if([n.next,n.yes,n.no,...(n.choices||[]).map(c=>c.target)].includes(id))add('intro',n.id,'intro link');
   }
   for(const a of doc.actions) {
     if(type==='actions'&&a.requires===id)add('actions',a.id,'unlocks this choice');
     if(type==='actions'&&a.unavailableAfter===id)add('actions',a.id,'permanently removes this choice');
+    if(type==='actions'&&a.availability?.afterAny?.includes(id))add('actions',a.id,'makes this choice available');
+    if(type==='actions'&&a.availability?.renewedBy?.includes(id))add('actions',a.id,'makes this choice available again');
     if(type==='messages'&&a.message===id)add('actions',a.id,'result intertitle');
     if(type==='messages'&&a.firstGainMessage===id)add('actions',a.id,'first rapture gain');
     if(type==='messages'&&a.revealOnMessage===id)add('actions',a.id,'attribute reveal');
+    if(type==='messages'&&a.requiresMessage===id)add('actions',a.id,'must be read before this choice appears');
     if(type==='messages'&&doc.firstPurchaseMessage===id&&(a.effects.money||0)<0)add('actions',a.id,'first purchase');
     if(type==='logs'&&a.log===id)add('actions',a.id,'records this log');
+    if(type==='logs'&&a.firstLog===id)add('actions',a.id,'first-use description');
+    if(type==='messages'&&a.hintMessage===id)add('actions',a.id,'requirement hint');
+    if(type==='actions'&&a.requiresOutcome&&doc.actions.find(choice=>choice.id===id)?.outcomes?.some(o=>o.id===a.requiresOutcome))add('actions',a.id,'unlocked by an outcome');
     for(const outcome of a.outcomes||[]) {
       if(type==='logs'&&outcome.log===id)add('actions',a.id,'random outcome log');
       if(type==='messages'&&outcome.message===id)add('actions',a.id,'random outcome intertitle');
     }
   }
+  for(const event of doc.scheduledEvents||[])if(type==='actions'&&event.action===id)add('messages',event.message,'scheduled event choice');
   for(const [source,link] of Object.entries(doc.messageLinks||{})) {
     if(type==='messages'&&link.next===id)add('messages',source,'continues here');
     if(type==='logs'&&link.log===id)add('messages',source,'records this log');
@@ -62,7 +70,11 @@ export function duplicateCard(doc,s,newId) {
   return {type:s.type,id};
 }
 export function removalReason(doc,s) {
+  const rules=doc.storyRules;
+  if(rules?.openingFlow&&(s.type==='messages'&&s.id===rules.openingFlow.hungerMessage||s.type==='actions'&&[...rules.openingFlow.homeActions,'try-sleep','breakfast','pace','sleep','hardware-store','cook','groceries','go-hole'].includes(s.id)))return 'This card is linked to the opening. Its writing may be blank; disable the choice to remove it from play.';
+  if(rules&&(s.type==='actions'&&[rules.personAfter,...rules.meals,...rules.libraryChoices,'sleep','go-hole','hole-look','hole-say','hole-feed','smoke-joint','visit-library'].includes(s.id)||s.type==='messages'&&[rules.personMessage,'body-hungry','body-still-hungry'].includes(s.id)||s.type==='logs'&&rules.libraryPrompt===s.id))return 'This card is linked to a story rule. Its writing may be blank; disable the choice to remove it from play.';
   if(s.type==='messages'&&doc.scheduledEvents?.some(e=>e.message===s.id))return 'This intertitle starts a scheduled passage. Edit its text and story hour here; keep its starting card.';
+  if(s.type==='actions'&&doc.scheduledEvents?.some(e=>e.action===s.id))return 'This choice opens a scheduled passage. Choose another event card on its starting intertitle before removing it.';
   if(s.type==='messages'&&doc.firstPurchaseMessage===s.id)return 'This intertitle starts the shared first-purchase sequence. Choose another first purchase intertitle from a purchase card’s Links before removing it.';
   if(s.type==='messages'&&Object.values(doc.choiceWarnings||{}).includes(s.id))return 'This intertitle is used by the rapture warnings. You can edit its text here.';
   if(['ui','statLabels'].includes(s.type)||s.type==='logs'&&s.id==='opening')return 'This is a required game label or opening log.';

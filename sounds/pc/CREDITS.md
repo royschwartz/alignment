@@ -1,0 +1,3 @@
+# PC effects
+
+Adapted from Alignment’s retained electronic click recipe, also verified in the archived 1.2.1 Android app. The click and selected-card sound retain its 45 ms tone and exponential envelope, now at a low 218 Hz. All effects stay within 216–225 Hz, with duration and level unchanged. Arrivals randomly choose among four closely spaced low pitches instead of following deal order; withdrawal is a quieter low tick. No third-party recordings, foley, noise layers or reverb. Recipes and hashes are in provenance.json; tools/prepare-pc-sounds.py reproduces the files. Earlier sound banks remain preserved.

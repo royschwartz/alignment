@@ -2,6 +2,7 @@
 // only: every frame passes through the game's monochrome threshold, so shading
 // is done with ordered-dither patterns. Nothing here changes rules or charges.
 import {wrapText,placeText} from './text-layout.mjs';
+import {GAME_TEXT} from './phone-screen.mjs';
 
 export const PAIN=[
   {id:'none',name:'none',note:'The current game: no mark.'},
@@ -289,7 +290,7 @@ const inkNoise=(x,y,seed=0)=>{
 export function wornInkPixels(w,h,rim){
   const pixels=new Uint8Array(w*h);
   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
-    const studyY=y+6,dx=Math.min(x,w-1-x),dy=Math.min(y,h-1-y);
+    const studyY=Math.min(y,h-1-y)+6,dx=Math.min(x,w-1-x),dy=Math.min(y,h-1-y);
     const edge=Math.min(dx,dy),frame=edge<rim,corner=dx<18&&dy<18,r=inkNoise(x,studyY,29);
     let black=frame;
     if(frame&&edge>=3&&!corner){
@@ -321,24 +322,32 @@ function drawWornInkFace(c,x,y,w,h,rim){
   c.save();c.imageSmoothingEnabled=false;c.drawImage(face,x,y,w,h);c.restore();
 }
 
-export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,available=true,pain='none',need='none',level=2,faceDown=false,id='',t=0,since=0,reduceMotion=false,fontFamily='monospace',bold=true}) {
-  // A single inked top face replaces the stripes, within the same footprint.
+export function choiceCardTextHeight(labels,width,measure) {
+  const inset=Math.max(10,Math.max(4,Math.round(width*.045))+6);
+  return Math.max(0,...labels.map(label=>wrapText(label.toLowerCase(),width-2*inset,measure).length*GAME_TEXT.body+2*inset+6));
+}
+export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=10,available=true,pain='none',need='none',level=2,faceDown=false,id='',t=0,since=0,reduceMotion=false,fontFamily='monospace',bold=true}) {
+  label=label.toLowerCase();
+  // Mirrored inked caps and worn faces keep the same outer footprint.
   c.save();c.fillStyle='#000';
-  for(let row=0;row<6;row++){
-    const inset=6-row;c.fillRect(x+inset,y+row,w-2*inset,1);
+  for(let row=0;row<3;row++){
+    const inset=3-row;
+    c.fillRect(x+inset,y+row,w-2*inset,1);c.fillRect(x+inset,y+h-1-row,w-2*inset,1);
   }
   c.fillStyle='#fff';
-  for(let row=2;row<5;row++)for(let col=9;col<w-9;col++){
-    if(inkNoise(Math.floor(col/2),Math.floor(row/2),47)>.8&&inkNoise(col,row,8)>.3)c.fillRect(x+col,y+row,1,1);
+  for(let row=1;row<3;row++)for(let col=9;col<w-9;col++){
+    if(inkNoise(Math.floor(col/2),Math.floor(row/2),47)>.8&&inkNoise(col,row,8)>.3){
+      c.fillRect(x+col,y+row,1,1);c.fillRect(x+col,y+h-1-row,1,1);
+    }
   }
-  c.restore();y+=6;h-=6;
+  c.restore();y+=3;h-=6;
   const k=reduceMotion?.6:pulse(t,since),b=reduceMotion?1:breath(t,since);
   let fx=x,fy=y;
   if(need==='lifted'){const o=Math.round(1+2*b);fx=x-o;fy=y-o;c.fillStyle='#000';c.fillRect(x+o,y+o,w,h);}
   if(need==='ring')ring(c,x,y,w,h,b);
   if(need==='pulled')pulled(c,x,y,w,h,t,since,reduceMotion);
-  // Roy's heavier frame is inset, so every card keeps the same outer size.
-  const rim=Math.max(6,Math.round(w*.085));
+  // A thinner inset frame retains the worn grain and mirrored silhouette.
+  const rim=Math.max(4,Math.round(w*.045));
   labelInset=Math.max(labelInset,rim+6);
   // A face-down card shows its back, but its need or pain marks stay visible.
   if(faceDown)drawCardBack(c,fx,fy,w,h);
@@ -351,15 +360,16 @@ export function drawChoiceCard(c,{x,y,w,h,label,textLayout,labelInset=14,availab
   if(need==='heartbeat')heartbeat(c,fx,fy,w,h,k);
   if(need==='thread'){c.fillStyle='#000';c.fillRect(Math.round(fx+w/2)-2,fy-1,5,4);}
   if(need==='chain'){c.strokeStyle='#000';c.lineWidth=1.5;c.beginPath();c.arc(fx+w/2,fy-1,3,0,Math.PI*2);c.fillStyle='#fff';c.fill();c.stroke();}
-  // The label matches the game's choice button: bold 13 px, centred unless placed.
-  const size=13,leading=size+6;
+  // Match the enlarged choice type, centred unless Roy placed it explicitly.
+  const size=GAME_TEXT.body;
   c.font=`${bold?'bold ':''}${size}px ${fontFamily}`;c.textBaseline='top';c.textAlign='left';
   const measure=value=>c.measureText(value).width,rows=faceDown?[]:wrapText(label,w-2*labelInset,measure);
+  const leading=rows.length>1?Math.max(size,Math.min(size+6,(h-2*(rim+6)-size)/(rows.length-1))):size+6;
   const placed=placeText(rows,{measure,bounds:{x:fx+labelInset,y:fy+rim+6,w:w-2*labelInset,h:h-2*(rim+6)},leading,fontSize:size,
     top:fy+(h-leading*rows.length)/2+3,layout:textLayout||{align:'center'},autoCenter:rows.length===1,scaleWidth:w,scaleHeight:h});
   if(pain==='barbed-across'){c.strokeStyle='#fff';c.lineWidth=4;c.lineJoin='round';placed.forEach(row=>c.strokeText(row.text,Math.round(row.x),Math.round(row.y)));}
   c.fillStyle='#000';placed.forEach(row=>c.fillText(row.text,Math.round(row.x),Math.round(row.y)));
   if(need==='flashes-1997'&&(reduceMotion||Math.max(0,t-since)%1000<500))flashes1997(c,fx,fy,w,h);
   if(need==='lit'&&k>.45){c.save();c.globalCompositeOperation='difference';c.fillStyle='#fff';c.fillRect(fx,fy,w,h);c.restore();}
-  if(!available){c.fillStyle='#fff';for(let yy=fy+2;yy<fy+h-2;yy++)for(let xx=fx+2+(yy%2);xx<fx+w-2;xx+=2)c.fillRect(xx,yy,1,1);}
+  // Availability fades the complete card after rasterization, including its caps.
 }

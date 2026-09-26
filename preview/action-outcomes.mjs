@@ -1,3 +1,4 @@
+// Mechanics reference: ../design/CHOICE_LOGIC.md (shared rules and every choice entry).
 export function seedFrom(value) {
   let seed=2166136261;
   for(const char of String(value)){seed^=char.charCodeAt(0);seed=Math.imul(seed,16777619);}
@@ -11,12 +12,20 @@ function shuffled(items,seed) {
 }
 // Resolve before drawing the card so its warning/cost and committed outcome
 // always agree. Reloading, reading, and other choices never reroll this draw.
+function resolveDuration(state,action) {
+  if(!action.durations?.length)return action;
+  const {durations,...base}=action,count=state.events.filter(e=>e.id===action.id).length+(state.origin.completed.includes(action.id)?1:0);
+  const cycle=Math.floor(count/durations.length),order=shuffled(durations,seedFrom(`${state.randomSeed}:${action.id}:duration:${cycle}`));
+  return {...base,minutes:order[count%durations.length]};
+}
 export function resolveOutcome(state,action) {
-  if(!action.outcomes?.length)return action;
+  if(!action.outcomes?.length)return resolveDuration(state,action);
   const pool=action.outcomes.filter(o=>o.enabled!==false);
   if(!pool.length)return {...action,enabled:false};
-  const draws=state.events.filter(e=>e.id===action.id).length+(state.origin.completed.includes(action.id)?1:0);
+  const count=state.events.filter(e=>e.id===action.id).length+(state.origin.completed.includes(action.id)?1:0);
+  if(action.firstLog&&count===0){const {outcomes,...base}=action;return resolveDuration(state,{...base,log:action.firstLog});}
+  const draws=Math.max(0,count-(action.firstLog?1:0));
   const cycle=Math.floor(draws/pool.length),order=shuffled(pool,seedFrom(`${state.randomSeed}:${action.id}:${cycle}`));
   const picked=order[draws%pool.length],{outcomes,...base}=action;
-  return {...base,...picked,id:action.id,enabled:action.enabled!==false,outcome:picked.id};
+  return resolveDuration(state,{...base,...picked,id:action.id,enabled:action.enabled!==false,outcome:picked.id});
 }

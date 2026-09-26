@@ -71,7 +71,7 @@ export async function mountEditor(bridge) {
     safeSelection();body.append(h('div',{class:'writer-nav'},btn('←',()=>navigate(-1),{'aria-label':'Previous editable card'}),h('span',{},groupName[selection.type]),btn('→',()=>navigate(1),{'aria-label':'Next editable card'})));
     const s=selection;
     if(s.type==='intro')renderIntro(body,draft.intro.find(n=>n.id===s.id));
-    else if(s.type==='actions')renderAction(body,draft.actions.find(a=>a.id===s.id));
+    else if(s.type==='actions'){const action=draft.actions.find(a=>a.id===s.id);renderAction(body,action);renderChoiceRules(body,action);}
     else {body.append(heading(s.type==='messages'?'Intertitle':s.type==='logs'?'Log message':'Label'),field('Text',draft[s.type][s.id],v=>draft[s.type][s.id]=v,{multiline:true}));
       if(s.type==='logs')body.append(field('Date on log',draft.ui.logDate||'',v=>draft.ui.logDate=v),
         selectField('Starting time',draft.ui.logStartHour??String(DEFAULT_START_HOUR),Array.from({length:24},(_,hour)=>[String(hour),storyTime(0,hour)]),v=>draft.ui.logStartHour=v),
@@ -82,13 +82,88 @@ export async function mountEditor(bridge) {
     if(s.type==='messages'&&Object.values(draft.choiceWarnings||{}).includes(s.id))body.append(h('p',{class:'writer-help'},!draft.choiceWarnings.cost?'Shown before spending rapture. The heart appears without charging anything. Tap to return, then select the choice again to complete it.':s.id===draft.choiceWarnings.cost?'Second warning. X becomes the calculated rapture cost. Tapping brings you back to the choices.':'First warning for a choice that loses rapture. Tapping brings you back to the choices.'));
     if(s.type==='messages'&&s.id===draft.firstPurchaseMessage)body.append(h('p',{class:'writer-help'},'Plays on the first purchase anywhere in the game. Tapping this first intertitle reveals the money icon with a brief blink, then continues to the next linked intertitle.'));
     if(s.type==='messages')for(const event of draft.scheduledEvents||[])if(event.message===s.id)body.append(
-      heading('Scheduled passage'),check('Play at the story hour',event.enabled!==false,v=>event.enabled=v),
+      heading('Scheduled passage'),check('Enable at the story hour',event.enabled!==false,v=>event.enabled=v),
       selectField('Story hour',String(event.hour),Array.from({length:24},(_,hour)=>[String(hour),storyTime(0,hour)]),v=>event.hour=Number(v)),
-      h('p',{class:'writer-help'},'Plays once when a task reaches or passes this hour, after that task’s intertitles. Reading and warnings do not advance the clock.'));
+      selectField('Event choice card',event.action||'',[['','play the passage automatically'],...draft.actions.map(action=>[action.id,action.label||'Untitled choice'])],v=>{if(v)event.action=v;else delete event.action;}),
+      h('p',{class:'writer-help'},'Once a task reaches this hour, finish its intertitles, then offer the event card alone. Selecting it opens this passage without adding time or a charge. With no event card linked, the passage plays automatically. Reading does not advance the clock.'));
+    if(s.type==='actions'&&s.id==='sleep'&&draft.storyRules)renderStorySettings(body);
     if(['intro','messages','actions','logs'].includes(s.type))renderPlacement(body,s);
     renderManipulation(body);
     if(!['ui','statLabels'].includes(s.type))renderLinks(body);
     body.append(h('div',{class:'writer-footer'},btn('test from here',async()=>{if(!await flush())return;testing=true;panel.hidden=true;tools.hidden=false;document.body.classList.remove('editor-open');testBar.hidden=false;document.body.classList.add('editor-testing');bridge.test(selection);}),btn('back to game',play)));
+  }
+  function renderStorySettings(body) {
+    const r=draft.storyRules,section=h('details',{},h('summary',{},'story timing & supplies'));
+    section.append(h('p',{class:'writer-help'},'Sleep advances to the wake hour. Starting supplies apply to new saves; completed tasks keep their recorded amounts.'));
+    const policy=()=>draft.choicePolicy??={hideUnavailable:false,mealGapMinutes:0};
+    section.append(field('Starting possessions (IDs separated by commas)',draft.startingItems?.join(', ')||'',v=>draft.startingItems=v.trim()?v.split(',').map(x=>x.trim()):[]),h('p',{class:'writer-help'},'Starting possessions apply to new games only. A choice can grant an item when it is completed.'));
+    section.append(check('Hide unavailable choice cards',draft.choicePolicy?.hideUnavailable===true,v=>policy().hideUnavailable=v),
+      field('Time between meals (minutes)',draft.choicePolicy?.mealGapMinutes??0,v=>policy().mealGapMinutes=Number(v),{type:'number'}),
+      h('p',{class:'writer-help'},'The meal gap starts when a meal ends. The first cook after dishes, first breakfast and required post-shift meal can still appear.'));
+    if(draft.choicePolicy?.deal){
+      const deal=draft.choicePolicy.deal;
+      for(const [key,label]of Object.entries({size:'Choices per deal (1–4)',recentWindow:'Recent choices to consider (1–20)',repeatWeight:'Recent choice weight (above 0 to 1)',threadBoost:'Shared thread boost (0–10)'}))section.append(field(label,deal[key],v=>deal[key]=Number(v),{type:'number'}));
+      section.append(h('p',{class:'writer-help'},'Only eligible choices enter the deal. Lower repeat weights make recently chosen cards less likely; a thread boost favors choices connected to recent activity.'));
+    }
+    for(const [key,label]of Object.entries({sleepHour:'Sleep available from hour',wakeHour:'Wake hour',sleepChance:'Later-night chance (0–1)',startingPortions:r.startingFrozenPortions===undefined?'Starting portions':'Starting non-frozen portions',startingJoints:'Starting joints',groceryPortions:'Non-frozen portions bought',mealPortions:'Portions per meal',mealRelief:'Hunger relief per meal',hungryAt:'Hungry passage threshold',offeringMax:'Maximum offering portions',offeringPerHunger:'Hunger per offering portion',holeReliefTo:'Hunger after feeding'}))section.append(field(label,r[key],v=>r[key]=Number(v),{type:'number'}));
+    if(r.startingFrozenPortions!==undefined)section.append(field('Starting frozen portions',r.startingFrozenPortions,v=>r.startingFrozenPortions=Number(v),{type:'number'}));
+    if(r.leftoverPortions!==undefined)section.append(field('Extra portions set aside as leftovers when cooking',r.leftoverPortions,v=>r.leftoverPortions=Number(v),{type:'number'}),h('p',{class:'writer-help'},'Taken from the existing food supply after the meal. Earlier meals keep their recorded amounts.'));
+    section.append(selectField('First hunger reveal',r.hungerReveal,[['hidden','keep hidden'],['meal','after the first meal'],['ribcage','at the hunger passage']],v=>{r.hungerReveal=v;draft.hungerIndicator.enabled=v!=='hidden';}));
+    if(r.openingFlow){
+      const f=r.openingFlow;
+      section.append(check('Home / first-night opening for new games',f.enabled,v=>f.enabled=v));
+      for(const [key,label]of Object.entries({shiftStartHour:'Shift starts at hour',shiftEndHour:'Shift ends at hour',shiftRapture:'First shift rapture change',mealRapture:'Unsatisfying meal rapture change',morningGroceriesMinutes:'Morning grocery trip minutes',postMealMinutes:'Minutes after cooking before hunger reveal'}))section.append(field(label,f[key],v=>f[key]=Number(v),{type:'number'}));
+      section.append(selectField('Hunger passage',f.hungerMessage,Object.entries(draft.messages).map(([id,text])=>[id,text||id]),v=>f.hungerMessage=v));
+      if(f.firstNight){
+        const n=f.firstNight,night=h('details',{},h('summary',{},'first evening & restless night'));
+        night.append(check('Use the first-night progression',n.enabled,v=>n.enabled=v));
+        if(n.cookingAfterGroceries!==undefined)night.append(check('Offer dishes and cooking after shopping',n.cookingAfterGroceries,v=>n.cookingAfterGroceries=v));
+        for(const [key,label]of Object.entries({windDownHour:'Offer sleep from hour',settlingMinutes:'Restless time after trying to sleep',mealPortions:'Maximum portions eaten per first-night meal'}))night.append(field(label,n[key],v=>n[key]=Number(v),{type:'number'}));
+        night.append(
+          field('Earliest bedtime (25 means 1 am)',n.bedHours[0],v=>n.bedHours[0]=Number(v),{type:'number'}),
+          field('Latest bedtime (26 means 2 am)',n.bedHours[1],v=>n.bedHours[1]=Number(v),{type:'number'}));
+        night.append(h('p',{class:'writer-help'},'Hunger begins on waking. Each activity uses its own duration. Cooking and other home activities stay optional; the clock brings the evening toward sleep.'));
+        section.append(night);
+      }
+      for(const a of draft.actions)section.append(check(`At home: ${a.label}`,f.homeActions.includes(a.id),v=>{f.homeActions=f.homeActions.filter(id=>id!==a.id);if(v)f.homeActions.push(a.id);}));
+    }
+    body.append(section);
+  }
+  function renderChoiceRules(body,action) {
+    const section=h('details',{},h('summary',{},'availability, deal & variable time'));
+    for(const [key,label]of [['requiresItems','Required possessions'],['grantsItems','Possessions acquired']])section.append(field(label+' (IDs separated by commas)',action[key]?.join(', ')||'',v=>{if(v.trim())action[key]=v.split(',').map(x=>x.trim());else delete action[key];}));
+    section.append(check('Only offer as an event card',action.eventOnly===true,v=>action.eventOnly=v));
+    section.append(field('Thread',action.thread??'',v=>action.thread=v),
+      field('Deal weight (above 0 to 100)',action.dealWeight??1,v=>{if(v.trim())action.dealWeight=Number(v);else delete action.dealWeight;},{type:'number'}),
+      h('p',{class:'writer-help'},'Choices with the same thread can follow one another more often. A higher deal weight makes this card more likely among eligible choices; the default is 1. These settings apply when dealing is enabled.'));
+    section.append(selectField('Available after reading intertitle',action.requiresMessage||'',[['','no passage required'],...messageOptions()],v=>{if(v)action.requiresMessage=v;else delete action.requiresMessage;}),
+      h('p',{class:'writer-help'},'The player must dismiss this passage before the choice can appear. A blank passage does not unlock it.'));
+    const set=(key,value)=>{
+      if(value===undefined){if(action.availability){delete action.availability[key];if(!Object.keys(action.availability).length)delete action.availability;}}
+      else {action.availability??={};action.availability[key]=value;}
+    };
+    section.append(field('Duration alternatives (minutes, separated by commas)',action.durations?.join(', ')||'',v=>{
+      if(v.trim())action.durations=v.split(',').map(part=>part.trim()?Number(part.trim()):NaN);else delete action.durations;
+    }),h('p',{class:'writer-help'},'Leave blank to use the normal duration or each random outcome’s duration. Alternatives override those durations; reading and reloading keep the same selection. Special sleep and work schedules still apply.'),
+      field('Offer when food portions are at most',action.availability?.maxPortions??'',v=>set('maxPortions',v.trim()?Number(v):undefined),{type:'number'}),
+      field('Wait after completion (minutes)',action.availability?.cooldownMinutes??'',v=>set('cooldownMinutes',v.trim()?Number(v):undefined),{type:'number'}),
+      check('Once per story day',action.availability?.oncePerDay===true,v=>set('oncePerDay',v||undefined)),
+      check('Limit available hours',!!action.availability?.hours,v=>{set('hours',v?[0,24]:undefined);render();}),
+      h('p',{class:'writer-help'},'Blank limits do not restrict the choice. Daily limits and waiting time use the story clock, starting from completion.'));
+    if(action.availability?.hours)section.append(
+      field('Available from hour (0–24)',action.availability.hours[0],v=>set('hours',[Number(v),action.availability.hours[1]]),{type:'number'}),
+      field('Available until hour (0–24)',action.availability.hours[1],v=>set('hours',[action.availability.hours[0],Number(v)]),{type:'number'}));
+    for(const [key,label,help]of [
+      ['afterAny','Available after any of these choices','One selected choice must have been completed. Leave all unchecked for no added prerequisite.'],
+      ['renewedBy','Available again after one of these choices','After completing this task, one selected choice must happen before it returns.']
+    ]){
+      const links=h('details',{},h('summary',{},label),h('p',{class:'writer-help'},help));
+      for(const source of draft.actions.filter(a=>a.id!==action.id))links.append(check(source.label||'Untitled choice',action.availability?.[key]?.includes(source.id),v=>{
+        const ids=(action.availability?.[key]||[]).filter(id=>id!==source.id);if(v)ids.push(source.id);set(key,ids.length?ids:undefined);
+      }));
+      section.append(links);
+    }
+    body.append(section);
   }
   function renderPlacement(body,s) {
     let line='all';
@@ -175,7 +250,12 @@ export async function mountEditor(bridge) {
       reference('First rapture gain intertitle','messages',action.firstGainMessage,messageOptions(),v=>set('firstGainMessage',v));
       if((action.effects.money||0)<0)reference('First purchase intertitle (shared)','messages',draft.firstPurchaseMessage,messageOptions(),v=>{if(v)draft.firstPurchaseMessage=v;else delete draft.firstPurchaseMessage;});
       reference('Record log message','logs',action.log,Object.keys(draft.logs).map(id=>[id,title(draft,{type:'logs',id})]),v=>set('log',v));
+      section.append(selectField('Replace x in the log with remaining supply',action.logInventory||'',[['','no replacement'],['portions','non-frozen food portions'],['frozenPortions','frozen food portions'],['leftovers','leftover portions'],['joints','joints']],v=>set('logInventory',v)));
       }
+      if(action.firstLog)reference('First-use description','logs',action.firstLog,Object.keys(draft.logs).map(id=>[id,title(draft,{type:'logs',id})]),v=>set('firstLog',v));
+      if(action.hintMessage)reference('Requirement hint','messages',action.hintMessage,messageOptions(),v=>set('hintMessage',v));
+      if(draft.storyRules)section.append(check('Requires the PERSON encounter',action.requiresPerson,v=>action.requiresPerson=v),check('Morning only',action.morningOnly,v=>action.morningOnly=v));
+      section.append(selectField('Available after outcome',action.requiresOutcome||'',[['','no outcome requirement'],...draft.actions.flatMap(a=>(a.outcomes||[]).map(o=>[o.id,`${a.label}: ${draft.logs[o.log]||'(blank)'}`]))],v=>set('requiresOutcome',v)));
       section.append(selectField('Available after',action.requires||'',[['','from the beginning'],...prerequisiteOptions(action)],v=>set('requires',v)),btn('+ following choice card',()=>addAction(action.id)));
       section.append(selectField('Permanently remove after',action.unavailableAfter||'',[['','no other choice removes it'],...draft.actions.filter(a=>a.id!==action.id).map(a=>[a.id,a.label||'Untitled choice'])],v=>set('unavailableAfter',v)));
     } else if(s.type==='messages') {
@@ -229,11 +309,14 @@ export async function mountEditor(bridge) {
         ...following.map((id,index)=>btn(`${index+2}. ${draft.messages[id]||'Blank intertitle'}`,()=>select({type:'messages',id}),{class:'writer-card'})));
     }
     body.append(field(draft.requireActionLogs?'Log phrase':'Log message text (optional)',draft.logs[action.log]||'',v=>setMessage('log',v),{multiline:true}),check('Show this choice in the game',action.enabled!==false,v=>action.enabled=v),check('Hide once completed',action.hideWhenDone,v=>action.hideWhenDone=v));
+    body.append(check('Can be repeated',action.repeatable===true,v=>action.repeatable=v));
+    body.append(check('Play linked intertitles after the result',action.followMessageLinks!==false,v=>action.followMessageLinks=v));
     body.append(check('Allow a stat-only log while writing',action.statOnlyLog===true,v=>action.statOnlyLog=v));
-    if(draft.requireActionLogs)body.append(h('p',{class:'writer-help'},'A task needs your log phrase, or permission above to use its automatic stat changes alone. Empty outcome text is skipped.'));
+    body.append(h('p',{class:'writer-help'},draft.requireActionLogs?'A task needs your log phrase, or permission above to use its automatic stat changes alone.':'Descriptions are optional. Leaving this blank keeps the activity playable and clears the previous description.'));
     const details=h('details',{},h('summary',{},'time & stat changes'),field('Duration (minutes)',action.minutes,v=>action.minutes=Number(v),{type:'number'}));
-    details.append(check('Time spent reduces rapture',action.drainRapture!==false,v=>action.drainRapture=v),check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v),h('p',{class:'writer-help'},'Durations can exceed one hour. Hunger still grows with time. The warning can be switched off for each choice.'));
-    details.append(h('p',{class:'writer-help'},'Direct rapture, money, disquiet and choice changes appear automatically beside your log phrase. Rapture lost through time and all numeric hunger changes stay out of the log. The hunger indicator is held back until its introduction.'));
+    details.append(check('Time spent reduces rapture',action.drainRapture!==false,v=>action.drainRapture=v),h('p',{class:'writer-help'},'Durations can exceed one hour. Hunger still grows with time.'));
+    if(draft.choiceWarnings)details.append(check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v));
+    details.append(h('p',{class:'writer-help'},'Direct changes appear beneath revealed attribute totals. The description contains only your writing; hunger and time-drain amounts remain hidden.'));
     for(const key of ['rapture','hunger','disquiet','money','choice'])details.append(field(`${key} change`,action.effects[key]||0,v=>{const n=Number(v);if(n)action.effects[key]=n;else delete action.effects[key];},{type:'number'}));
     for(const key of ['rapture','hunger','money','disquiet','choice'])details.append(check(`Reveal ${key}`,action.reveal.includes(key),v=>{action.reveal=action.reveal.filter(k=>k!==key);if(v)action.reveal.push(key);}));
     details.append(check('Reveal attributes after the final intertitle',action.revealAtEnd===true,v=>action.revealAtEnd=v));
@@ -251,14 +334,23 @@ export async function mountEditor(bridge) {
     body.append(heading('Choice card'),field('Choice text',action.label,v=>action.label=v),
       check('Show this choice in the game',action.enabled!==false,v=>action.enabled=v),
       check('Can be repeated',action.repeatable===true,v=>action.repeatable=v),
+      check('Play linked intertitles after the result',action.followMessageLinks!==false,v=>action.followMessageLinks=v),
       check('Time spent reduces rapture',action.drainRapture!==false,v=>action.drainRapture=v),
-      check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v),
-      heading('Random log outcomes'),h('p',{class:'writer-help'},'One outcome is drawn each time. Every enabled outcome is used once before the pool reshuffles. Reading, warnings and reloading keep the same draw.'));
+      ...(draft.choiceWarnings?[check('Warn before losing rapture',action.warnRaptureLoss!==false,v=>action.warnRaptureLoss=v)]:[]),
+      heading('Changing outcomes'),h('p',{class:'writer-help'},'The choice name stays the same. One outcome is drawn each time. Every enabled outcome is used once before the pool reshuffles. Reading, warnings and reloading keep the same draw.'));
+    const reveals=h('details',{},h('summary',{},'attribute reveals'));
+    for(const key of ['rapture','hunger','money','disquiet','choice'])reveals.append(check(`Reveal ${key}`,action.reveal.includes(key),v=>{action.reveal=action.reveal.filter(k=>k!==key);if(v)action.reveal.push(key);}));
+    reveals.append(check('Reveal attributes after the final intertitle',action.revealAtEnd===true,v=>action.revealAtEnd=v),
+      selectField('Reveal attributes on intertitle',action.revealOnMessage||'',[['','use reveal timing above'],...messageOptions()],v=>{if(v)action.revealOnMessage=v;else delete action.revealOnMessage;}),
+      h('p',{class:'writer-help'},'With linked intertitles off, an intertitle-specific reveal happens only when that card is drawn.'));
+    body.append(reveals);
     action.outcomes.forEach((outcome,index)=>{
       const section=h('section',{class:'writer-choice'},h('h3',{},`Outcome ${index+1}`),
+        selectField('Result intertitle',outcome.message||'',[['','no intertitle'],...messageOptions()],v=>{if(v)outcome.message=v;else delete outcome.message;render();}),
+        ...(outcome.message?[btn('edit result intertitle',()=>select({type:'messages',id:outcome.message}))]:[]),
         field('Log phrase',draft.logs[outcome.log],v=>draft.logs[outcome.log]=v,{multiline:true}),
         field('Duration (minutes)',outcome.minutes,v=>outcome.minutes=Number(v),{type:'number'}),
-        field('rapture change',outcome.effects.rapture||0,v=>{const amount=Number(v);if(amount)outcome.effects.rapture=amount;else delete outcome.effects.rapture;},{type:'number'}),
+        ...['rapture','money','disquiet','choice','hunger'].map(key=>field(`${key} change`,outcome.effects[key]||0,v=>{const amount=Number(v);if(amount)outcome.effects[key]=amount;else delete outcome.effects[key];},{type:'number'})),
         check('Include in random draws',outcome.enabled!==false,v=>outcome.enabled=v),
         btn('edit log placement',()=>select({type:'logs',id:outcome.log})));
       if(action.outcomes.length>1)section.append(btn('remove outcome',()=>structural(()=>action.outcomes.splice(index,1))));
@@ -267,7 +359,7 @@ export async function mountEditor(bridge) {
     body.append(btn('+ random outcome',()=>structural(()=>{
       const id=uid('outcome'),log=uid('log');draft.logs[log]='';
       action.outcomes.push({id,log,minutes:15,effects:{rapture:1},enabled:false});
-    })),h('p',{class:'writer-help'},'Negative rapture outcomes use the shared cost warning when enabled above. Direct changes appear automatically beside the log phrase. Hunger stays hidden.'));
+    })),h('p',{class:'writer-help'},'Descriptions may be blank. Direct changes appear beneath revealed attribute totals. Negative rapture outcomes use the shared cost warning when enabled above.'));
     renderChoiceExport(body,action);
   }
   function refreshLinks(){const old=panel.querySelector('.writer-links');if(!old||old.contains(document.activeElement))return;const holder=h('div');renderLinks(holder);old.replaceWith(holder.firstChild);}

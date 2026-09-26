@@ -24,6 +24,12 @@
     <h1 id="settings-title">settings</h1>
     <label><input id="sound" type="checkbox"> sound</label>
     <label><input id="motion" type="checkbox"> reduce motion</label>
+    <fieldset class="animation-rate">
+      <legend>animation frame rate</legend>
+      <input id="animation-fps" type="range" min="1" max="60" step="1" value="12" aria-label="Animation frame rate">
+      <label><input id="animation-fps-number" type="number" min="1" max="60" step="1" value="12" aria-label="Frames per second"> FPS</label>
+      <p>All animation. Lower is more stepped; duration stays the same.</p>
+    </fieldset>
     <button id="restart">restart intro</button>
     <form method="dialog"><button class="primary">return</button></form>
   </dialog>

@@ -4,16 +4,6 @@
   "sourceUrl": "https://kenney.nl/assets/casino-audio",
   "sounds": [
     {
-      "cue": "arrival",
-      "file": "arrival.wav",
-      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-4.ogg",
-      "sourceSha256": "b9c82bcdbe6b7d00a06e2546bd2683a9ab082ca5fd090a42882f33eddd925b7f",
-      "sha256": "fcb11e41d3859fc1f7c6baec94d0881cbf07a06ebd4bf6ca99c771eb5543188c",
-      "offsetSeconds": 0.007936507936507936,
-      "durationSeconds": 0.16,
-      "edits": "Mono, native pitch, leading silence removed, 90 Hz high-pass and 9000 Hz low-pass, level matched, 5 ms fade in and 25 ms fade out."
-    },
-    {
       "cue": "withdrawal",
       "file": "withdrawal.wav",
       "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-shove-1.ogg",
@@ -32,6 +22,74 @@
       "offsetSeconds": 0.0,
       "durationSeconds": 0.6,
       "edits": "Mono, native pitch, leading silence removed, 700 Hz high-pass and 9000 Hz low-pass, level matched, 5 ms fade in and 25 ms fade out."
+    },
+    {
+      "cue": "arrival",
+      "variant": 1,
+      "file": "arrival.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-4.ogg",
+      "sourceSha256": "b9c82bcdbe6b7d00a06e2546bd2683a9ab082ca5fd090a42882f33eddd925b7f",
+      "sha256": "70351f0c031f1618ff78417dfb3261984f123e01dfdf7153774aaeeac5ca6cf4",
+      "durationSeconds": 0.23501133786848072,
+      "edits": "Original deterministic air sweep (600\u20133000 Hz, Q 0.62) layered with a quiet native-pitch excerpt of CC0 paper foley; mono, matched loudness, 7 ms opening and 22 ms closing fades.",
+      "synthesis": {
+        "seed": 832,
+        "lowHz": 600,
+        "highHz": 3000,
+        "q": 0.62,
+        "license": "CC0-1.0"
+      }
+    },
+    {
+      "cue": "arrival",
+      "variant": 2,
+      "file": "arrival-2.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-1.ogg",
+      "sourceSha256": "006cf9822d15d7063f8899e56041f41646df30adb6fbd8b974ee5d5420012690",
+      "sha256": "ef2763d4d96a9a32ad481c3fd3284feb5bc3122d90eb4187d756f63bcd69c049",
+      "durationSeconds": 0.23,
+      "edits": "Original deterministic air sweep (1150\u20135200 Hz, Q 0.78) layered with a quiet native-pitch excerpt of CC0 paper foley; mono, matched loudness, 7 ms opening and 22 ms closing fades.",
+      "synthesis": {
+        "seed": 933,
+        "lowHz": 1150,
+        "highHz": 5200,
+        "q": 0.78,
+        "license": "CC0-1.0"
+      }
+    },
+    {
+      "cue": "arrival",
+      "variant": 3,
+      "file": "arrival-3.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-7.ogg",
+      "sourceSha256": "bda2040194f43484d03ee3c65ed6fff57251882ea7227abce4214bfa30bf2705",
+      "sha256": "1c8f635012d3fa9244af2a50f34cd0455879f52db6547d63044ef9f2804f350e",
+      "durationSeconds": 0.24498866213151926,
+      "edits": "Original deterministic air sweep (420\u20132400 Hz, Q 0.5) layered with a quiet native-pitch excerpt of CC0 paper foley; mono, matched loudness, 7 ms opening and 22 ms closing fades.",
+      "synthesis": {
+        "seed": 1034,
+        "lowHz": 420,
+        "highHz": 2400,
+        "q": 0.5,
+        "license": "CC0-1.0"
+      }
+    },
+    {
+      "cue": "arrival",
+      "variant": 4,
+      "file": "arrival-4.wav",
+      "source": "research/retro-sounds-2026-09-22/sources/kenney-casino/Audio/card-slide-3.ogg",
+      "sourceSha256": "af2ab62656cb3df73316ce5771b8ee1111a840962b21607e3202151e7413c52c",
+      "sha256": "914f0a10398135f0763e3417e23e38d8064fec2a81b68cea73d582f5146a4ef9",
+      "durationSeconds": 0.22498866213151927,
+      "edits": "Original deterministic air sweep (1500\u20136200 Hz, Q 0.62) layered with a quiet native-pitch excerpt of CC0 paper foley; mono, matched loudness, 7 ms opening and 22 ms closing fades.",
+      "synthesis": {
+        "seed": 1135,
+        "lowHz": 1500,
+        "highHz": 6200,
+        "q": 0.62,
+        "license": "CC0-1.0"
+      }
     }
   ]
 }

@@ -98,3 +98,21 @@ export function monochrome(context, width, height) {
   context.putImageData(data, 0, 0);
   return new Uint32Array(data.data.buffer);
 }
+
+// Fade every ink mark on an unavailable card, including its outer edges. White
+// paper stays white and the original lettering and texture remain intact.
+// Apply after the monochrome/photo pass so thresholding cannot turn it black.
+export function greyUnavailableCards(pixels,width,height,cards=[]){
+  const data=new Uint8Array(pixels.buffer,pixels.byteOffset,pixels.byteLength);
+  for(const card of cards){
+    if(card.available!==false)continue;
+    const pad=card.inkPadding||0;
+    const left=Math.max(0,Math.floor(card.x-pad)),right=Math.min(width,Math.ceil(card.x+card.w+pad));
+    const top=Math.max(0,Math.floor(card.y-pad)),bottom=Math.min(height,Math.ceil(card.y+card.h+pad));
+    for(let y=top;y<bottom;y++)for(let x=left;x<right;x++){
+      const offset=(y*width+x)*4;
+      for(let channel=0;channel<3;channel++)data[offset+channel]=Math.round(153+data[offset+channel]*.4);
+    }
+  }
+  return pixels;
+}

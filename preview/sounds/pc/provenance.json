@@ -1,0 +1,84 @@
+{
+  "style": "1980s PC speaker",
+  "source": "archive/pre-human-authored-2026-09-13/mobile/audio.mjs",
+  "sourceSha256": "88e433c9fa51507b95904ea2f8899966b8b0f03f6e3779b4ff01945f41f4ef7d",
+  "reference": "The same 660 Hz / 45 ms square click is present in output/android/archive-1.2.1/Alignment-Stage-1.apk, assets/audio.mjs.",
+  "generator": "tools/prepare-pc-sounds.py",
+  "arrivalSelection": "Independent random choice per card; not deal order.",
+  "frequencyRangeHz": [
+    216,
+    225
+  ],
+  "sounds": [
+    {
+      "cue": "click",
+      "file": "click.wav",
+      "frequencyHz": 218,
+      "toneSeconds": 0.045,
+      "peakGain": 0.024,
+      "durationSeconds": 0.055011337868480725,
+      "waveform": "band-limited square",
+      "sha256": "cddaadb585a7aa474d16e338dc1f37c7bad5e33229427b1e5473e353f3e3dbc4"
+    },
+    {
+      "cue": "arrival",
+      "file": "arrival.wav",
+      "frequencyHz": 216,
+      "toneSeconds": 0.032,
+      "peakGain": 0.02,
+      "durationSeconds": 0.04199546485260771,
+      "waveform": "band-limited square",
+      "sha256": "f7e97a259b8e4cd25c28e4e904fd7a0222a3dc50b1203c36747ee052b21bfc1c"
+    },
+    {
+      "cue": "arrival-2",
+      "file": "arrival-2.wav",
+      "frequencyHz": 219,
+      "toneSeconds": 0.032,
+      "peakGain": 0.02,
+      "durationSeconds": 0.04199546485260771,
+      "waveform": "band-limited square",
+      "sha256": "79485d4dad48b209a9698ed9f13e51ef6e3cde25045ad46504cf10a6633a26b9"
+    },
+    {
+      "cue": "arrival-3",
+      "file": "arrival-3.wav",
+      "frequencyHz": 222,
+      "toneSeconds": 0.032,
+      "peakGain": 0.02,
+      "durationSeconds": 0.04199546485260771,
+      "waveform": "band-limited square",
+      "sha256": "ca5f60adeb5eff2f8e52dd97fde1cfc1d0fcc32898231745158f4346d9bd08b6"
+    },
+    {
+      "cue": "arrival-4",
+      "file": "arrival-4.wav",
+      "frequencyHz": 225,
+      "toneSeconds": 0.032,
+      "peakGain": 0.02,
+      "durationSeconds": 0.04199546485260771,
+      "waveform": "band-limited square",
+      "sha256": "598bce507efd4be5290d0c397273081ec7106fd37bce9a01a0b6807437e36645"
+    },
+    {
+      "cue": "withdrawal",
+      "file": "withdrawal.wav",
+      "frequencyHz": 216,
+      "toneSeconds": 0.025,
+      "peakGain": 0.013,
+      "durationSeconds": 0.03501133786848073,
+      "waveform": "band-limited square",
+      "sha256": "f46a0f021ccb782a5cb555a12788c65b322787c45cb93ce5b1bb5fda77f5b9ce"
+    },
+    {
+      "cue": "disintegration",
+      "file": "disintegration.wav",
+      "frequencyHz": 218,
+      "toneSeconds": 0.045,
+      "peakGain": 0.024,
+      "durationSeconds": 0.055011337868480725,
+      "waveform": "band-limited square",
+      "sha256": "cddaadb585a7aa474d16e338dc1f37c7bad5e33229427b1e5473e353f3e3dbc4"
+    }
+  ]
+}

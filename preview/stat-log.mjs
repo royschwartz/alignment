@@ -1,4 +1,5 @@
 import {LOG_STAT_KEYS,signedChange,STAT_ICONS} from './game-stats.mjs';
+import {firstNightLogAppendices} from './first-night.mjs';
 export const LOG_ICON_SIZE=16,LOG_ICON_GAP=4;
 
 // Use completed receipts, never the current option's effects: editing a choice must
@@ -14,7 +15,11 @@ export function eventChanges(event) {
     !(stat==='rapture'&&(source==='time'||oldTimePrefix&&index===0||!event.changes&&event.minutes>0)))
     .map(({stat,amount,need})=>need?{stat,amount,need}:{stat,amount});
 }
-export function logEntries(state) {
+const appendixRefs=(state,event,rules)=>{
+  const refs=firstNightLogAppendices(state,event,rules);
+  return refs.length?{appendices:[...new Set(refs)]}:{};
+};
+export function logEntries(state,rules) {
   if(state.phase==='intro')return [];
   const entries=['opening',...state.origin.logs.filter(id=>id!=='opening')].map(id=>({id,changes:[]}));
   // Display lab: rapture taken by withdrawn need cards rides on the turn's last line,
@@ -22,7 +27,8 @@ export function logEntries(state) {
   for(const event of state.events) {
     const all=eventChanges(event),changes=all.filter(c=>!c.need),withdrawn=all.filter(c=>c.need).map(({stat,amount})=>({stat,amount}));
     const start=entries.length;
-    if(event.log||changes.length)entries.push({id:event.log,changes});
+    const appendix=appendixRefs(state,event,rules);
+    if(event.log||changes.length||event.inventory||appendix.appendices?.length)entries.push({id:event.log,changes,...appendix,...(event.inventory?{inventory:event.inventory}:{}),...(event.logInventory?{logInventory:event.logInventory}:{})});
     for(const card of (event.cards||[]).slice(0,event.seen||0))if(card.log)entries.push({id:card.log,changes:[]});
     if(withdrawn.length){if(entries.length>start)entries.at(-1).withdrawn=withdrawn;else entries.push({id:null,changes:[],withdrawn});}
   }
@@ -31,13 +37,23 @@ export function logEntries(state) {
 // The status describes the latest turn, which can end with a linked story log
 // (sunset, for example). Its prose can change without discarding that turn's
 // signed amounts. History keeps each change on its original action entry.
-export function statusEntry(state) {
-  const entry=logEntries(state).at(-1)||{id:null,changes:[]};
+export function statusEntry(state,rules) {
   const event=state.events.at(-1);
-  if(state.phase==='intro'||!event)return entry;
+  if(state.phase==='intro'||!event)return logEntries(state,rules).at(-1)||{id:null,changes:[]};
+  // A quiet turn intentionally clears the previous description. Keep the last
+  // linked log reference even when Roy has cleared that log's text.
+  const linked=(event.cards||[]).slice(0,event.seen||0).filter(card=>card.log).at(-1);
+  const entry={id:linked?.log??event.log??null,changes:[]};
   const changes=eventChanges(event);
-  return {...entry,changes:changes.filter(change=>!change.need),
+  return {...entry,...appendixRefs(state,event,rules),...(event.inventory?{inventory:event.inventory}:{}),...(!linked&&event.logInventory?{logInventory:event.logInventory}:{}),changes:changes.filter(change=>!change.need),
     withdrawn:changes.filter(change=>change.need).map(({stat,amount})=>({stat,amount}))};
+}
+export function entryText(entry,logs,ui={}) {
+  const phrase=logs[entry.id]||'';
+  const text=entry.logInventory&&Object.hasOwn(entry.inventory||{},entry.logInventory)?phrase.replace(/\bx\b/gi,String(entry.inventory[entry.logInventory])):phrase;
+  const appendices=[...new Set(entry.appendices||[])].filter(id=>id!==entry.id).map(id=>logs[id]||'');
+  const remaining=Object.entries(entry.inventory||{}).filter(([key])=>key!==entry.logInventory).map(([key,value])=>(ui[`${key}Remaining`]||'').replace(/\bX\b/g,String(value))).filter(Boolean).join('\n');
+  return [text,...appendices,remaining].filter(text=>text.trim()).join('\n\n');
 }
 export const changeLabel=({stat,amount})=>stat==='money'?`${amount>0?'+':'-'}$${Number(Math.abs(amount).toFixed(6))}`:signedChange(amount);
 export const changesText = (changes,labels={}) => changes.map(change=>change.stat==='money'?changeLabel(change):`${changeLabel(change)} ${labels[change.stat]||change.stat}`).join('  ');

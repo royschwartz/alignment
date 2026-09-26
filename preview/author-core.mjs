@@ -194,7 +194,7 @@ export function choose(state,action) {
   const selected=action==='check'&&!(STORY_ENABLED&&state.story.encounter)?CHECK(state):card&&availableActions({...state,hesitation:null}).find(a=>a.id===action);
   if(!selected||state.message)return state;
   const {after,changes}=taskReceipt(state,selected),cost=round(Math.max(0,state.values.rapture-after.rapture));
-  if(!confirmed&&card&&!state.painWarned&&isPain(state,selected)) {
+  if(CHOICE_WARNINGS&&!confirmed&&card&&!state.painWarned&&isPain(state,selected)) {
     next.hesitation={action:selected.id,stage:1,cost,visible:true};next.painWarned=true;
     if(!next.origin.revealed.includes('rapture'))next.origin.revealed.push('rapture');
     Object.assign(next,totals(next.origin,next.events,next.phase));return next;

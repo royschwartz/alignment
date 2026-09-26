@@ -1,4 +1,10 @@
 export const DEFAULT_START_HOUR=13;
+// Sleep is charged on commitment, but the dream screens still belong to the
+// night just entered. Show the waking clock only after those screens finish.
+export function presentedElapsedMinutes(state) {
+  const last=state.events.at(-1);
+  return state.message&&state.message!=='body-hungry'&&last?.id==='sleep'?state.elapsedMinutes-last.minutes:state.elapsedMinutes;
+}
 export function storyTime(elapsedMinutes=0,startHour=DEFAULT_START_HOUR) {
   const start=Number(startHour),elapsed=Number(elapsedMinutes);
   const hour=Math.floor(((Number.isInteger(start)&&start>=0&&start<24?start:DEFAULT_START_HOUR)*60+

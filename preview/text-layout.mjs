@@ -22,10 +22,12 @@ export function placeText(rows,{measure,bounds,leading,fontSize,top=bounds.y,lay
   if(!rows.length)return [];
   const resolve=align=>!align||align==='auto'?(autoCenter?'center':'block'):align;
   const blockWidth=Math.max(...rows.map(row=>measure(row.text)));
+  let rowY=top;
   const positioned=rows.map((row,index)=>{
     const lineAlign=layout.lines?.[row.line]?.align;
     const width=measure(row.text),align=resolve(lineAlign&&lineAlign!=='auto'?lineAlign:layout.align);
-    return {...row,width,x:bounds.x+(align==='center'?(bounds.w-width)/2:align==='block'?(bounds.w-blockWidth)/2:align==='right'?bounds.w-width:0),y:top+index*leading};
+    const y=rowY;rowY+=row.height??leading;
+    return {...row,width,x:bounds.x+(align==='center'?(bounds.w-width)/2:align==='block'?(bounds.w-blockWidth)/2:align==='right'?bounds.w-width:0),y};
   });
   const shift=(items,x,y)=>{
     const ink=items.filter(row=>row.text);

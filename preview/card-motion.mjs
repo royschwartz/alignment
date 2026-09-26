@@ -1,7 +1,9 @@
 // Real-time choreography in milliseconds. No game writes.
 export const W = 415, H = 830;
-export const DEAL_MS = 325, GAIN_MS = 860, LOSS_MS = GAIN_MS, CARD_REDEAL = 280;
-export const CARD_ENTRY_STAGGER = 65, CARD_EXIT_STAGGER = 35;
+export const DEAL_MS = 175, GAIN_MS = 860, LOSS_MS = GAIN_MS, CARD_REDEAL = 280;
+export const CARD_ENTRY_STAGGER = 125, CARD_EXIT_STAGGER = 35;
+export const arrivalWindow=index=>({start:CARD_REDEAL+index*CARD_ENTRY_STAGGER,end:CARD_REDEAL+index*CARD_ENTRY_STAGGER+DEAL_MS});
+export const presentationDuration=(count=0,reduced=false)=>reduced?180:Math.max(GAIN_MS,count?arrivalWindow(count-1).end:0);
 export const cardExitKind=(card,selected,transfers=[])=>
   (selected!=null&&card.action===selected)||transfers.some(t=>t.action===card.action&&t.delta<0)?'disintegration':'withdrawal';
 export const withdrawalWindow=index=>({start:25+index*CARD_EXIT_STAGGER,end:160+index*CARD_EXIT_STAGGER});
@@ -14,7 +16,7 @@ export function cardSoundTimeline({outgoing=[],incoming=[],selected,transfers=[]
       end:reduced?90:cue==='disintegration'?(hasHand&&card.action===selected?650:CARD_REDEAL):window.end};
   });
   return events.concat(incoming.map((card,index)=>({cue:'arrival',card:card.action,index,
-    start:reduced?90+index*18:CARD_REDEAL+index*CARD_ENTRY_STAGGER,end:reduced?180:GAIN_MS})));
+    ...(reduced?{start:90+index*18,end:180}:arrivalWindow(index))})));
 }
 export const GAIN_LAUNCH = 100, GAIN_COAST = 270, GAIN_ARRIVAL = GAIN_MS;
 export const LOSS_RELEASE = 391 / 1.3, LOSS_ARRIVAL = LOSS_MS;
@@ -27,7 +29,8 @@ const smoother = x => { const p = clamp(x); return p*p*p*(p*(p*6-15)+10); };
 export const segment = (t, from, to) => clamp((t - from) / (to - from));
 const hermite = (p, startSlope, endSlope) => (p*p*p-2*p*p+p)*startSlope + (-2*p*p*p+3*p*p) + (p*p*p-p*p)*endSlope;
 export function entry(card, index, elapsed, reduced = false, duration = DEAL_MS, viewportHeight = H) {
-  const progress = reduced ? 1 : smoother(segment(elapsed, index * CARD_ENTRY_STAGGER, duration));
+  const start=index*CARD_ENTRY_STAGGER;
+  const progress = reduced ? 1 : smoother(segment(elapsed,start,start+duration));
   return {x: card.x, y: mix(viewportHeight + 1, card.y, progress), progress};
 }
 export function withdrawal(index,elapsed){

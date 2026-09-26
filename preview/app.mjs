@@ -1,8 +1,9 @@
-import {phoneScreen} from './phone-screen.mjs?v=1.4.10';
+import {animationClock,normalizeAnimationFPS,animateFrames,requestAnimationTick} from './animation-clock.mjs';
+import {phoneScreen,PHONE_BOLD_FONT,GAME_TEXT,CHOICE_CARD_DROP} from './phone-screen.mjs?v=1.4.10';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, applyDocument } from './author-content.mjs';
 import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY, hand, dealWeights, presentHand, withdrawingNeeds } from './author-core.mjs?v=1.4.10';
 import { cardChoices } from './author-schema.mjs?v=1.4.10';
-import { composeFrame, monochrome } from './effects.mjs';
+import { composeFrame, monochrome, greyUnavailableCards } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
 import {CardAudio} from './card-audio.mjs?v=1.4.10';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
@@ -11,8 +12,8 @@ import {logEntries,statusEntry,eventChanges,logPages} from './stat-log.mjs?v=1.4
 import {gameClock} from './story-clock.mjs?v=1.4.10';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
 import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.10';
-import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,FORMAT_MS} from './card-format.mjs?v=1.4.10';
-import {drawEventLinks} from './event-links.mjs?v=1.4.10';
+import {CardTransition,playCardTransition,cardLayout,transferCards,MAC_FONT,presentationDuration} from './card-format.mjs?v=1.4.10';
+import {drawEventLinks,alignEventCards,decisionProseBounds} from './event-links.mjs?v=1.4.10';
 // Display lab: a side copy of the game for trying pain/need card treatments.
 import {drawChoiceCard,drawThread,drawChain,isAnimated,isTethered} from './card-treatments.mjs?v=1.4.10';
 import {mountLab,lab,showDeal} from './lab.mjs?v=1.4.10';
@@ -29,33 +30,35 @@ let storage;
 try { const memory=new Map();storage=new URLSearchParams(location.search).has('test')?{getItem:key=>memory.get(key)||null,setItem:(key,value)=>memory.set(key,value)}:window.localStorage; } catch { storage = { getItem: () => null, setItem: () => { throw Error('Storage unavailable'); } }; }
 let prefs;
 try { prefs = JSON.parse(storage.getItem('alignment.preferences')) || {}; } catch { prefs = {}; }
-prefs = { sound: false, cardSound:prefs.cardSound!==false, reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
-audio.enabled = prefs.sound;cardAudio.enabled=prefs.cardSound;
+prefs = { sound: false, cardSound:prefs.cardSound!==false, animationFPS:normalizeAnimationFPS(prefs.animationFPS), reduceMotion: prefs.reduceMotion === true || matchMedia('(prefers-reduced-motion: reduce)').matches };
+audio.enabled = prefs.sound;cardAudio.enabled=prefs.cardSound;animationClock.setFPS(prefs.animationFPS);
 let state, width, height, pixels, layout, busy = false, animationId = 0, saveFailed = false;
 let heldStats=null,choiceSources={},lastChoiceSource=null;
-const statCues=new Map();let statCueTimer=null;
-function stopStatCue(){clearInterval(statCueTimer);statCueTimer=null;statCues.clear();audio.cancelCues();}
+const statCues=new Map();let statCueTimer=null,statCueGeneration=0;
+function stopStatCue(){statCueGeneration++;statCueTimer=null;statCues.clear();audio.cancelCues();}
 function startAttributeFeedback(before,after){
   const now=performance.now(),feedback=attributeFeedback(before,after,HUNGER_INDICATOR);
   for(const change of feedback)statCues.set(change.stat,{...change,start:now,revealStart:now,end:now+1200});
   if(!feedback.length)return;
-  statCueTimer=setInterval(()=>{
-    if(busy)return;
-    for(const [stat,cue] of statCues)if(performance.now()>=cue.end)statCues.delete(stat);
-    if(!statCues.size){clearInterval(statCueTimer);statCueTimer=null;}
-    const frame=draw();pixels=frame.pixels;paint(pixels);
-  },40);
+  const generation=++statCueGeneration;statCueTimer=generation;
+  void animateFrames({duration:1200,startedAt:now,isCurrent:()=>generation===statCueGeneration,
+    draw:elapsed=>{
+      if(busy)return;
+      for(const [stat,cue] of statCues)if(now+elapsed>=cue.end)statCues.delete(stat);
+      const frame=draw();pixels=frame.pixels;paint(pixels);
+    }
+  }).finally(()=>{if(generation===statCueGeneration){statCueTimer=null;queueAmbient();}});
 }
 let screen = 'main';
 let editorPreview = null, testBackup = null, actionPage = 0, textPage = 0, logPage = 0, editor = null, lastViewportWidth = 0;
 // When the current screen appeared: need cards burst on arrival, then settle.
 let sceneSince = performance.now();
-const STORY_FONT = 16, BODY_FONT = 13, SMALL_FONT = 10;
+const {story:STORY_FONT,body:BODY_FONT,small:SMALL_FONT,headerLabel:HEADER_LABEL_FONT,headerChange:HEADER_CHANGE_FONT}=GAME_TEXT;
 const CHOICES_PER_PAGE=4;
 // The same portrait size and tight, slightly uneven spacing on every choice screen.
 function choiceSize(){const grid=cardLayout(2,width,height);return {w:grid.w,h:grid.h};}
 function choiceGrid(count,bottom=height-94){
-  return cardLayout(Math.min(count,CHOICES_PER_PAGE),width,height,`${state?.randomSeed}:${state?.events.length}:${state?.node}`,bottom);
+  return cardLayout(Math.min(count,CHOICES_PER_PAGE),width,height,`${state?.randomSeed}:${state?.events.length}:${state?.node}`,bottom+CHOICE_CARD_DROP);
 }
 const save = () => {
   if (testBackup) return;
@@ -66,7 +69,7 @@ function savePrefs() {
   try { const previous = JSON.parse(storage.getItem('alignment.preferences')) || {}; storage.setItem('alignment.preferences', JSON.stringify({ ...previous, ...prefs })); } catch {}
 }
 function font(c, size, bold = false, italic = false) {
-  c.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px ${MAC_FONT}`;
+  c.font = `${italic ? 'italic ' : ''}${bold ? 'bold ' : ''}${size}px ${bold ? PHONE_BOLD_FONT : MAC_FONT}`;
   c.textBaseline = 'top'; c.fillStyle = '#000';
 }
 function text(c, value, x, y, size = BODY_FONT, { bold = false, italic = false, center = false } = {}) {
@@ -82,14 +85,15 @@ function control(out, label, x, y, w, h, action, available = true) {
   out.buttons.push({ label, x, y, w, h, action, available });
 }
 function quiet(c, out, label, x, y, w, h, action, accessible = label) {
-  text(c, label, x + w / 2, y + (h - SMALL_FONT) / 2, SMALL_FONT, { center: true });
+  const size=y<headerStatLayout(width).dividerY?HEADER_LABEL_FONT:SMALL_FONT;
+  text(c, label, x + w / 2, y + (h - size) / 2, size, { center: true });
   control(out, accessible, x, y, w, h, action);
 }
 function button(c, out, label, x, y, w, h, action, { primary = false, available = true, textLayout=null, card=false } = {}) {
   if(card){
     drawChoiceCard(c,{x,y,w,h,label,textLayout,available,id:action,fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
     control(out,label,x,y,w,h,action,available);
-    out.cards?.push({action,x,y,w,h});return;
+    out.cards?.push({action,x,y,w,h,available});return;
   }
   box(c, x, y, w, h);
   if (primary) c.strokeRect(x + 3.5, y + 3.5, w - 7, h - 7);
@@ -104,11 +108,11 @@ function button(c, out, label, x, y, w, h, action, { primary = false, available 
     for (let yy = y + 2; yy < y + h - 2; yy++) for (let xx = x + 2 + (yy % 2); xx < x + w - 2; xx += 2) c.fillRect(xx, yy, 1, 1);
   }
   control(out, label, x, y, w, h, action, available);
-  if(card)out.cards?.push({action,x,y,w,h});
+  if(card)out.cards?.push({action,x,y,w,h,available});
 }
 function choiceImage(id,blank=false) {
   const c=document.createElement('canvas').getContext('2d',{willReadFrequently:true});
-  const {w,h}=choiceSize();c.canvas.width=w;c.canvas.height=h;
+  const {w,h}=choiceSize();c.canvas.width=w;c.canvas.height=h;c.fillStyle='#fff';c.fillRect(0,0,w,h);
   button(c,{buttons:[]},blank?'':ACTIONS.find(a=>a.id===id)?.label||'',0,0,w,h,id,{textLayout:TEXT_LAYOUTS.actions?.[id]||{},card:true});
   const frame=monochrome(c,w,h);
   c.putImageData(new ImageData(new Uint8ClampedArray(frame.buffer,frame.byteOffset,frame.byteLength),w,h),0,0);
@@ -122,11 +126,11 @@ function header(c, out) {
   (heldStats||presentedStats(state,HUNGER_INDICATOR)).forEach(([id,value]) => {
     const x=headerStatX(id,width),now=performance.now(),cue=statCues.get(id);
     if(!cue?.reveal||now>=cue.revealStart+900||prefs.reduceMotion||Math.floor((now-cue.revealStart)/150)%2===0)icon(c,STAT_ICONS[id],x-16,row.iconY);
-    text(c,STAT_LABELS[id].toUpperCase(),x,row.labelY,SMALL_FONT,{center:true});
+    text(c,STAT_LABELS[id].toUpperCase(),x,row.labelY,HEADER_LABEL_FONT,{center:true});
     const number=String(id==='money'?Math.round(value*100)/100:Math.round(value*10)/10);
     text(c,number,x,row.totalY,18,{center:true});
     if(id==='hunger')out.hungerNumber={x:x-c.measureText(number).width/2-1,y:row.totalY,w:c.measureText(number).width+2,h:22,...hungerTrend(state,HUNGER_INDICATOR)};
-    if(changes[id])text(c,signedChange(changes[id]),x,row.changeY,BODY_FONT,{center:true});
+    if(changes[id])text(c,signedChange(changes[id]),x,row.changeY,HEADER_CHANGE_FONT,{center:true});
   });
   c.fillStyle='#000';c.fillRect(row.dividerInset,row.dividerY,width-2*row.dividerInset,1);
   quiet(c, out, '· ·', 8, 29, 40, 24, 'settings', UI.settings);
@@ -175,8 +179,8 @@ function scene(c, out, node, intro = true) {
   const isTitle = node.kind === 'title';
   const choices = cardChoices(node).map(choice=>({...choice,label:node.yes&&!node.choices?UI[choice.id]:choice.label}));
   const options = { bold: node.bold === true, italic: node.italic === true };
-  // Restore the original type sizes while retaining the portrait card.
-  const size = isTitle ? (width < 350 ? 15 : 17) : STORY_FONT;
+  // Larger reading text below the header; wrapping keeps authored line identities.
+  const size = isTitle ? (width < 350 ? GAME_TEXT.titleNarrow : GAME_TEXT.title) : STORY_FONT;
   font(c,size,options.bold,options.italic);const measure=value=>c.measureText(value).width,margin=proseMargin(width);
   const rows = blank ? [] : wrapText(node.text,width-2*margin,measure);
   const leading = size + 10;
@@ -188,6 +192,7 @@ function scene(c, out, node, intro = true) {
   const positioned=placeText(visibleRows,{measure,bounds:{x:margin,y:206,w:width-2*margin,h:bottom-(178)},leading,fontSize:size,top,
     layout:textLayout,autoCenter:rows.length===1,scaleWidth:width,scaleHeight:height});
   positioned.forEach(row=>text(c,row.text,row.x,row.y,size,options));
+  out.proseBounds=decisionProseBounds(positioned,measure,size);
   out.scene = { id: node.id, text: node.text, kind: node.kind || (choices.length ? 'prompt' : 'line'), ...options, center:(textLayout.align||'auto')==='center'||(!textLayout.align||textLayout.align==='auto')&&rows.length===1, fontSize: size, page, pages };
   out.text = blank ? node.sound : pages>1?visibleRows.map(row=>row.text).join('\n'):node.text;
   if(pages>1)text(c,`${page+1} / ${pages}`,width/2,height-47,SMALL_FONT,{center:true});
@@ -213,32 +218,35 @@ function scene(c, out, node, intro = true) {
   if (choices.length) {
     actionPage=Math.min(actionPage,Math.ceil(choices.length/CHOICES_PER_PAGE)-1);
     const shown=choices.slice(actionPage*CHOICES_PER_PAGE,(actionPage+1)*CHOICES_PER_PAGE),grid=choiceGrid(shown.length,height-90);
-    drawEventLinks(c,grid.cards,{x:width/2,y:Math.min(grid.top-26,top+visibleRows.length*leading+18)});
-    shown.forEach((choice,i)=>{const {x,y}=grid.cell(i);button(c,out,choice.label,x,y,grid.w,grid.h,`choice:${choice.id}`,{available:!!choice.label.trim(),card:true});});
-    if(choices.length>CHOICES_PER_PAGE) quiet(c,out,'more choices →',width-174,height-72,158,48,'options-next');
+    const slots=alignEventCards(grid.cards);
+    out.decision={prose:out.proseBounds,branch:['investigate','throw'].includes(node.id)?null:drawEventLinks(c,slots,{x:width/2,y:Math.min(grid.top-26,top+visibleRows.length*leading+18)})};
+    shown.forEach((choice,i)=>{const {x,y}=slots[i];button(c,out,choice.label,x,y,grid.w,grid.h,`choice:${choice.id}`,{available:!!choice.label.trim(),card:true});});
+    if(choices.length>CHOICES_PER_PAGE) quiet(c,out,'more choices →',width-174,height-52,158,48,'options-next');
   } else if (node.begin) {
     button(c, out, UI.begin, width - 184, height - 78, 162, 56, 'begin', { primary: true });
   } else {
     control(out, UI.next, 1, 70, width - 2, height - 164, 'next');
     quiet(c, out, '→', width - 72, height - 78, 56, 56, 'next', UI.next);
   }
-  if (page>0||state.trail.length) quiet(c, out, '←', 14, height - 78, 56, 56, page>0?'scene-prev':'back', UI.back);
+  if (page>0||state.trail.length) quiet(c, out, '←', 14, height-(choices.length?54:78), 56, choices.length?48:56, page>0?'scene-prev':'back', UI.back);
 }
 function warningChoices(c,out){
   const grid=choiceGrid(4,height-90),parent={x:(width-grid.w)/2,y:(grid.cell(0).y+grid.cell(1).y)/2,w:grid.w,h:grid.h};
   const action=ACTIONS.find(a=>a.id===state.hesitation?.action);
-  drawEventLinks(c,grid.cards.slice(2),{x:width/2,y:parent.y+parent.h});
+  const children=alignEventCards(grid.cards.slice(2));
+  out.decision={prose:out.proseBounds,branch:drawEventLinks(c,children,{x:width/2,y:parent.y+parent.h})};
   drawChoiceCard(c,{...parent,label:action?.label||'',id:action?.id||'',pain:'none',fontFamily:MAC_FONT,bold:false,reduceMotion:prefs.reduceMotion});
   out.cards.push({...parent,action:'event-parent'});
-  [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=grid.cell(i+2);button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
+  [['warn-yes',UI.yes],['warn-no',UI.no]].forEach(([id,label],i)=>{const at=children[i];button(c,out,label,at.x,at.y,at.w,at.h,id,{card:true});});
 }
 // The existing deal uses the approved close portrait-card format.
 let anim=null;
 function handGeometry() {
-  const dealt=hand(state),grid=cardLayout(dealt.cards.length,width,height,`${state.randomSeed}:${dealt.turn}`,height-94);
-  return {...grid,slots:Object.fromEntries(dealt.cards.map((card,i)=>[card.slot,grid.cell(i)]))};
+  const dealt=hand(state),grid=cardLayout(dealt.cards.length,width,height,`${state.randomSeed}:${dealt.turn}`,height-94+CHOICE_CARD_DROP);
+  if(STORY_ENABLED&&state.story.encounter)grid.cards=alignEventCards(grid.cards);
+  return {...grid,slots:Object.fromEntries(dealt.cards.map((card,i)=>[card.slot,grid.cards[i]]))};
 }
-// Roy, September 24: the hand appears only as brief card-selection feedback.
+// Roy removed the selection hand; card movement supplies the visual feedback.
 
 const heartAnchor=()=>({x:headerStatX('rapture',width),y:headerStatLayout(width).changeY+11});
 function placement(card) {return {x:card.x,y:card.y,k:1};}
@@ -255,10 +263,6 @@ function drawDealt(c,card,size,now) {
     if(anim.p<.5)drawPhotoBack(c,opts);else drawFace({...opts,pain:'none',need:'none'});
   } else drawFace({...opts,faceDown:card.faceDown});
   if(card.action.requiredChoice&&Object.hasOwn(state.stats,'choice'))text(c,String(card.action.requiredChoice),w/2,h-25,SMALL_FONT,{center:true});
-  if(card.available===false){
-    c.fillStyle='#fff';
-    for(let yy=2;yy<h-2;yy++)for(let xx=2+(yy%2);xx<w-2;xx+=2)c.fillRect(xx,yy,1,1);
-  }
   c.restore();
 }
 function main(c, out) {
@@ -273,16 +277,18 @@ function main(c, out) {
   }
   const entry=statusEntry(state);
   const log=LOGS[entry.id]||'';
-  const allRows=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null),prose=allRows.filter(row=>!row.tokens),rows=prose.slice(0,3);
-  if(prose.length>3)rows[2]={...rows[2],text:rows[2].text+'…'};
+  const prose=logRows(c,[entry],BODY_FONT).filter(row=>row.entry!==null&&!row.tokens);
+  const capacity=Math.max(1,Math.min(3,Math.floor((size.top-217)/(BODY_FONT+10)))),rows=prose.slice(0,capacity);
+  if(prose.length>capacity)rows[capacity-1]={...rows[capacity-1],text:rows[capacity-1].text+'…'};
   const encounter=STORY_ENABLED&&state.story.encounter;
   if(encounter){
     const value=MESSAGES['hole-standing'],margin=proseMargin(width);
     font(c,STORY_FONT);const measure=s=>c.measureText(s).width;
     const lines=wrapText(value,width-2*margin,measure),leading=STORY_FONT+10;
     const bounds={x:margin,y:196,w:width-2*margin,h:Math.max(60,size.top-220)};
-    placeText(lines,{measure,bounds,leading,fontSize:STORY_FONT,top:196+Math.max(0,(bounds.h-lines.length*leading)/2),layout:{},autoCenter:lines.length===1,scaleWidth:width,scaleHeight:height}).forEach(row=>text(c,row.text,row.x,row.y,STORY_FONT));
-    drawEventLinks(c,cards,{x:width/2,y:Math.min(size.top-26,196+Math.max(0,(bounds.h-lines.length*leading)/2)+lines.length*leading+18)});
+    const positioned=placeText(lines,{measure,bounds,leading,fontSize:STORY_FONT,top:196+Math.max(0,(bounds.h-lines.length*leading)/2),layout:{},autoCenter:lines.length===1,scaleWidth:width,scaleHeight:height});
+    positioned.forEach(row=>text(c,row.text,row.x,row.y,STORY_FONT));
+    out.decision={prose:decisionProseBounds(positioned,measure,STORY_FONT),branch:drawEventLinks(c,cards,{x:width/2,y:Math.min(size.top-26,196+Math.max(0,(bounds.h-lines.length*leading)/2)+lines.length*leading+18)})};
     out.scene={id:'hole-standing',text:value,kind:'choice',page:0,pages:1};
   }else logSheet(c,rows,{h:24+logDateHeight(logDateRows(c))+rows.reduce((h,row)=>h+row.height,0)});
   for(const card of cards)if(!placement(card,size).k||placement(card,size).k===1)drawDealt(c,card,size,now);
@@ -291,11 +297,11 @@ function main(c, out) {
     const role=card.need?' (need)':card.painLook!=='none'?' (pain)':'';
     const label=card.faceDown?`face-down card${role}`:`${card.action.label}${role}${card.action.choiceLocked?' (insufficient choice)':''}`;
     control(out,label,card.x,card.y,size.w,size.h,card.action.id,card.available!==false);
-    out.cards.push({action:card.action.id,x:card.x,y:card.y,w:size.w,h:size.h,flashSeed:card.flashSeed});
+    out.cards.push({action:card.action.id,x:card.x,y:card.y,w:size.w,h:size.h,flashSeed:card.flashSeed,available:card.available,inkPadding:card.painLook!=='none'?8:0});
     Object.assign(out.buttons.at(-1),{raptureCost:card.cost,pain:card.painLook,need:card.needLook,faceDown:card.faceDown,choiceLocked:card.action.choiceLocked===true});
   }
   // Passing remains available without a permanent hand on the table.
-  if(!encounter)quiet(c,out,'check',width-88,height-73,72,48,'check');
+  if(!encounter)quiet(c,out,'check',width-88,height-52,72,48,'check');
   out.animated=cards.some(card=>isAnimated(card.needLook));
   showDeal({turn:dealt.turn,cards:dealt.cards,pool:dealWeights(state)});
   out.text = encounter?MESSAGES['hole-standing']:[dateBar(),log].filter(Boolean).join('\n');
@@ -327,7 +333,7 @@ function draw() {
   if(graySource){const source=graySource;
     for(const a of c.photoAreas)for(let y=Math.max(0,Math.ceil(a.y));y<Math.min(height,Math.floor(a.y+a.h));y++)
       for(let x=Math.max(0,Math.ceil(a.x));x<Math.min(width,Math.floor(a.x+a.w));x++)raster[y*width+x]=source[y*width+x];}
-  return { pixels: tintHungerNumber(raster,width,height,out.hungerNumber), layout: out };
+  return { pixels: tintHungerNumber(greyUnavailableCards(raster,width,height,out.cards),width,height,out.hungerNumber), layout: out };
 }
 function paint(value) { ctx.putImageData(new ImageData(new Uint8ClampedArray(value.buffer, value.byteOffset, value.byteLength), width, height), 0, 0); }
 function positionClock(){const rect=canvas.getBoundingClientRect();$('story-clock').style.top=`${Math.max(50,rect.top+50)}px`;$('story-clock').style.right=`${Math.max(10,innerWidth-rect.right+10)}px`;}
@@ -352,8 +358,9 @@ function installControls() {
 function redraw() {
   $('settings-title').textContent=UI.settings;$('restart').textContent=UI.restart;
   $('settings').querySelector('form button').textContent=UI.return;
-  $('sound').parentElement.lastChild.textContent=' card sounds';$('motion').parentElement.lastChild.textContent=' '+UI.motion;
+  $('sound').parentElement.lastChild.textContent=' PC sounds';$('motion').parentElement.lastChild.textContent=' '+UI.motion;
   const frame = draw(); pixels = frame.pixels; layout = frame.layout; paint(pixels); installControls();
+  queueAmbient();
 }
 function resize() {
   stopStatCue();cardAudio.cancel();
@@ -363,26 +370,18 @@ function resize() {
   canvas.width=width;canvas.height=height;
   $('stack').style.width = `${width}px`; $('stack').style.height = `${height}px`; redraw();
 }
-async function dissolve(from, to, id) {
-  if (prefs.reduceMotion) { paint(to); return; }
-  const w = width, h = height, buffer = new Uint32Array(to.length);
-  await new Promise(resolve => {
-    let start;
-    const tick = now => {
-      if (id !== animationId || w !== width || h !== height) { resolve(); return; }
-      start ??= now; const progress = Math.min(1, (now - start) / 260);
-      paint(composeFrame(from, to, w, h, progress, 'dissolve', buffer));
-      if (progress === 1) resolve(); else requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
+async function dissolve(from,to,id){
+  if(prefs.reduceMotion){paint(to);return;}
+  const w=width,h=height,buffer=new Uint32Array(to.length);
+  await animateFrames({duration:260,isCurrent:()=>id===animationId&&w===width&&h===height,
+    draw:elapsed=>paint(composeFrame(from,to,w,h,elapsed/260,'dissolve',buffer))});
 }
 // Time-based frames, so an animation still finishes if the window is in the background.
-async function play(kind,ids,duration) {
-  const token=animationId;
-  busy=true;$('controls').replaceChildren();const start=performance.now();
-  await new Promise(resolve=>{const step=()=>{if(token!==animationId){resolve();return;}const p=Math.min(1,(performance.now()-start)/duration);anim={kind,ids,p};
-    const frame=draw();pixels=frame.pixels;paint(pixels);if(p<1)setTimeout(step,30);else resolve();};step();});
+async function play(kind,ids,duration){
+  const token=animationId;busy=true;$('controls').replaceChildren();
+  await animateFrames({duration,isCurrent:()=>token===animationId,draw:elapsed=>{
+    anim={kind,ids,p:elapsed/duration};const frame=draw();pixels=frame.pixels;paint(pixels);
+  }});
   if(token===animationId){anim=null;busy=false;}
 }
 async function activate(action,selectionPoint=null) {
@@ -432,11 +431,11 @@ async function activate(action,selectionPoint=null) {
   heldStats=pendingStats;
   const held=draw().pixels;heldStats=null;
   cardAudio.cancel();
-  void cardAudio.transition({outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,hasHand:!!icons.hand,startedAt,reduced:prefs.reduceMotion});
+  void cardAudio.transition({outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,startedAt,reduced:prefs.reduceMotion,clicked:true});
   try {
     if(cardsChanged||feedback.length){
       await playCardTransition({transition:new CardTransition({from,to:frame.pixels,held,width,height,
-        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,handImage:icons.hand,selectionPoint}),context:ctx,startedAt,isCurrent:()=>id===animationId});
+        outgoing:previousLayout.cards,incoming:frame.layout.cards,selected:action,transfers,reduced:prefs.reduceMotion,selectionPoint,decision:frame.layout.decision}),context:ctx,startedAt,isCurrent:()=>id===animationId});
     }else await dissolve(from,frame.pixels,id);
   }finally {
     if(id===animationId){busy=false;startAttributeFeedback(before,state);redraw();}
@@ -475,11 +474,17 @@ function labJump(where) {
   }
   state=next;screen='main';actionPage=0;textPage=0;logPage=0;sceneSince=performance.now();save();redraw();
 }
-// Need cards move; redraw only while one is on screen and motion is allowed.
-setInterval(()=>{
-  if(busy||statCueTimer||!layout?.animated||prefs.reduceMotion||document.hidden)return;
-  const frame=draw();pixels=frame.pixels;paint(pixels);
-},50);
+// Breathing borders and tethers use the same cadence as every transition.
+let ambientFrame=null;
+function queueAmbient(){
+  if(ambientFrame!==null||busy||statCueTimer||!layout?.animated||prefs.reduceMotion||document.hidden)return;
+  ambientFrame=requestAnimationTick(()=>{
+    ambientFrame=null;
+    if(busy||statCueTimer||!layout?.animated||prefs.reduceMotion||document.hidden)return;
+    const frame=draw();pixels=frame.pixels;paint(pixels);queueAmbient();
+  });
+}
+
 try {
   state = restoreGame(storage.getItem(SAVE_KEY)) || createGame();
   audio.prepare();cardAudio.prepare();
@@ -492,8 +497,17 @@ try {
   $('sound').onchange=event=>{prefs.cardSound=event.target.checked;cardAudio.setEnabled(prefs.cardSound);savePrefs();};
   $('motion').checked = prefs.reduceMotion;
   $('motion').onchange = event => { prefs.reduceMotion = event.target.checked; savePrefs(); };
+  const setFrameRate=value=>{
+    prefs.animationFPS=animationClock.setFPS(value);
+    $('animation-fps').value=String(prefs.animationFPS);$('animation-fps-number').value=String(prefs.animationFPS);
+    savePrefs();
+  };
+  $('animation-fps').value=String(prefs.animationFPS);$('animation-fps-number').value=String(prefs.animationFPS);
+  $('animation-fps').oninput=event=>setFrameRate(event.target.value);
+  $('animation-fps-number').oninput=event=>{if(event.target.value!==''&&event.target.validity.valid)setFrameRate(event.target.value);};
+  $('animation-fps-number').onchange=event=>setFrameRate(event.target.value);
+
   $('restart').onclick = restart;
-  await new Promise(resolve=>{const image=new Image();image.onload=()=>{icons.hand=image;resolve();};image.onerror=resolve;image.src='art/check-hand.png';});
   resize(); save(); $('boot').remove(); addEventListener('resize', resize);addEventListener('scroll',positionClock,{passive:true});
   window.visualViewport?.addEventListener('resize',resize);
   new ResizeObserver(()=>{if(document.documentElement.clientWidth!==lastViewportWidth)resize();}).observe(document.documentElement);
@@ -525,8 +539,8 @@ try {
     }
   });
   window.alignmentSnapshot = () => ({ state: structuredClone(state), screen: state.phase === 'intro' || state.message || currentWarning(state) ? 'scene' : STORY_ENABLED&&state.story.encounter?'choice':screen,
-    scene: layout.scene, busy, renderer: 'shared-granola-format', transitionMs:FORMAT_MS, content: 'human-authored', width, height,
-    fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
+    scene: layout.scene, busy, renderer: 'shared-granola-format', transitionMs:presentationDuration(layout?.cards?.length||0,prefs.reduceMotion), cardEntryStaggerMs:250, content: 'human-authored', width, height,
+    animationFPS:prefs.animationFPS, fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   // The lab never mounts the writing editor, so it cannot change the manuscript.
   if(['localhost','127.0.0.1'].includes(location.hostname))mountLab({actions:()=>ACTIONS.map(a=>({id:a.id,label:a.label})),jump:labJump,

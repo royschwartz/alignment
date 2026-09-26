@@ -19,6 +19,12 @@ dialog::backdrop { background: repeating-conic-gradient(#ffffff99 0 25%, #000000
 dialog h1 { font-size: 19px; font-weight: normal; margin: 0 0 28px; }
 dialog label { display: block; margin: 24px 0; }
 dialog button { width: 100%; margin: 8px 0; }
+.animation-rate { border:1px solid; padding:12px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; }
+.animation-rate legend { padding:0 5px; }
+.animation-rate input[type=range] { width:100%; margin:0; accent-color:#000; }
+.animation-rate label { display:flex; gap:6px; align-items:center; margin:0; }
+.animation-rate input[type=number] { width:58px; padding:7px 4px; border:1px solid; background:#fff; color:#000; font:inherit; }
+.animation-rate p { grid-column:1/-1; font-size:12px; line-height:1.5; margin:0; }
 input[type=checkbox] { width: 24px; height: 24px; accent-color: #000; vertical-align: middle; margin: 0 10px 0 0; }
 .primary { border: 3px double #000; font-weight: bold; }
 @media (max-width: 600px) { #desktop { padding: 0; background: #fff; } #stack { box-shadow: none; } }
