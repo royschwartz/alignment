@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Alignment · psychedelic granola</title>
+  <link rel="stylesheet" href="./granola.css">
+</head>
+<body>
+  <main aria-label="Alignment motion prototype">
+    <div id="stage">
+      <canvas width="415" height="830" aria-hidden="true"></canvas>
+      <p id="prose" class="sr-only"></p>
+      <div id="totals" class="sr-only"></div>
+      <div id="choices" role="group" aria-label="Choices">
+        <button disabled data-choice="0">throw it in the hole</button>
+        <button disabled data-choice="1">don’t</button>
+      </div>
+      <div id="status" class="sr-only" role="status" aria-live="polite">Loading.</div>
+    </div>
+    <footer>
+      <div class="tools">
+        <button id="replay" disabled>Replay</button>
+        <button id="pause" disabled aria-pressed="false">Pause</button>
+        <label><input id="reduce" type="checkbox"> Reduced motion</label>
+      </div>
+      <p>Motion study · temporary effects: +1 disquiet / −1 rapture</p>
+    </footer>
+  </main>
+  <script type="module" src="./granola.mjs"></script>
+</body>
+</html>

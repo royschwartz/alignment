@@ -1,0 +1,44 @@
+{
+  "collection": "IconStack 1.7.6 (1993)",
+  "compilers": [
+    "Geoff Williams",
+    "Dan Lyons"
+  ],
+  "source": "https://archive.org/details/hypercard_iconstack-176",
+  "source_manifest": "research/retro-icons-1990s/library/iconstack-1993/manifest.csv",
+  "original_notice": "ORIGINAL-README.txt",
+  "rights": "Historical copying/modification encouraged; commercial-game reuse unverified",
+  "changes": "Two original 32×32 monochrome PNG files copied byte for byte from the existing Alignment assets. No image modifications.",
+  "icons": {
+    "heart": {
+      "file": "heart.png",
+      "usage": "Heart; Rapture and relationships",
+      "source_path": "research/retro-icons-1990s/library/iconstack-1993/icons/miscellaneous/071-miscellaneous-r02-c09.png",
+      "category": "miscellaneous",
+      "card_number": 71,
+      "card_id": 11778,
+      "card_name": "Misc",
+      "row": 2,
+      "column": 9,
+      "pixel_sha256": "2b03a5346d9548447320adc835b82c3c8a48f09accf2ed875e1c27fd84928ae8",
+      "file_sha256": "7e947dd046a42c7fff2b673365f58e1cf8209d08c3b4f6d81589e4ddfda7510b",
+      "width": 32,
+      "height": 32
+    },
+    "friend": {
+      "file": "friend.png",
+      "usage": "Two eyes in darkness; the friend",
+      "source_path": "research/retro-icons-1990s/library/iconstack-1993/icons/eyes-glasses/034-eyes-glasses-r05-c03.png",
+      "category": "eyes-glasses",
+      "card_number": 34,
+      "card_id": 39306,
+      "card_name": "Eyes",
+      "row": 5,
+      "column": 3,
+      "pixel_sha256": "b925ed767251310947dba40599ec7b17e051fa5d04cc8e759c945fc79b6a06de",
+      "file_sha256": "00bfb68676d14fbda383fdfb063c70c85bb507bc9af5f72fe54ea9ad0617af47",
+      "width": 32,
+      "height": 32
+    }
+  }
+}

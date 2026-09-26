@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+:root { color-scheme: light; color: #000; background: #fff; font-family: Geneva, Helvetica, Arial, sans-serif; }
+body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 24px 12px; background: repeating-conic-gradient(#fff 0 25%, #000 0 50%) 0 0 / 2px 2px; }
+main { width: min(415px, 100%); background: #fff; box-shadow: 6px 6px #000; }
+#stage { width: 100%; aspect-ratio: 415/830; position: relative; overflow: hidden; background: white; }
+canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+#choices { position: absolute; inset: 0; pointer-events: none; }
+#choices button { position: absolute; top: 66.5060241%; width: 43.8554217%; height: 13.0120482%; padding: 0; margin: 0; border: 0; color: transparent; background: transparent; pointer-events: auto; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+#choices button:first-child { left: 4.0963855%; }
+#choices button:last-child { left: 52.0481928%; }
+#choices button:disabled { pointer-events: none; cursor: default; }
+#choices button:focus-visible { outline: 2px dashed #000; outline-offset: 5px; }
+footer { border: 1px solid #000; border-top: 0; padding: 13px 12px 10px; }
+.tools { display: flex; align-items: center; gap: 10px; }
+.tools button { background: #fff; color: #000; border: 1px solid #000; border-radius: 3px; padding: 5px 13px; box-shadow: 1px 1px #000; min-height: 30px; font: bold 12px Geneva, Helvetica, Arial, sans-serif; cursor: pointer; }
+.tools button:active, .tools button[aria-pressed="true"] { background: #000; color: #fff; box-shadow: none; }
+.tools button:disabled { opacity: .5; }
+.tools label { display: flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11px; white-space: nowrap; cursor: pointer; }
+input { accent-color: #000; }
+footer p { font: 10px/1.4 monospace; margin: 12px 0 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:focus-visible { outline: 2px solid #000; outline-offset: 4px; }
+@media (max-width: 440px) { body { padding: 0; display: block; background: #fff; } main { border: 0; box-shadow: none; margin: auto; } }
+/* Preserve thin letter strokes when the native bitmap must be scaled down. */
+@media (max-width: 414px) { canvas { image-rendering: auto; } }
