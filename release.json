@@ -1,5 +1,5 @@
 {
-  "version": "1.4.10",
+  "version": "1.4.11",
   "status": "release",
   "content": "human-authored",
   "script": "roy-opening-2026-09-13",
@@ -16,7 +16,7 @@
   "requireActionLogs": true,
   "choiceColumns": 2,
   "choiceCardsPerPage": 4,
-  "versionCode": 25,
+  "versionCode": 26,
   "screenFormat": "native-size-phone",
   "desktopCanvas": {
     "width": 480,

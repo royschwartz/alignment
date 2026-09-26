@@ -1,21 +1,21 @@
 import {animationClock,normalizeAnimationFPS,animateFrames} from './animation-clock.mjs';
 import { INTRO, ACTIONS, LOGS, MESSAGES, MESSAGE_LINKS, STAT_LABELS, UI, TEXT_LAYOUTS, HUNGER_INDICATOR, STORY_RULES, applyDocument } from './author-content.mjs';
-import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.10';
-import { cardChoices } from './author-schema.mjs?v=1.4.10';
+import { createGame, choose, currentNode, availableActions, visibleActions, restoreGame, serializeGame, reconcileGame, previewIntertitle, currentWarning, raptureCost, SAVE_KEY } from './author-core.mjs?v=1.4.11';
+import { cardChoices } from './author-schema.mjs?v=1.4.11';
 import { composeFrame, monochrome, greyUnavailableCards } from './effects.mjs';
 import { StackAudio } from './audio.mjs';
-import {CardAudio} from './card-audio.mjs?v=1.4.10';
+import {CardAudio} from './card-audio.mjs?v=1.4.11';
 import {wrapText,placeText,proseMargin} from './text-layout.mjs';
-import {STAT_ICONS,headerStatX,headerStatLayout,signedChange} from './game-stats.mjs?v=1.4.10';
-import {logEntries,statusEntry,eventChanges,logPages,entryText} from './stat-log.mjs?v=1.4.10';
-import {gameClock,presentedElapsedMinutes} from './story-clock.mjs?v=1.4.10';
+import {STAT_ICONS,headerStatX,headerStatLayout,signedChange} from './game-stats.mjs?v=1.4.11';
+import {logEntries,statusEntry,eventChanges,logPages,entryText} from './stat-log.mjs?v=1.4.11';
+import {gameClock,presentedElapsedMinutes} from './story-clock.mjs?v=1.4.11';
 import {hungerTrend,tintHungerNumber} from './hunger-indicator.mjs';
-import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.10';
-import {phoneScreen,PHONE_FONT,PHONE_BOLD_FONT,GAME_TEXT,CHOICE_CARD_DROP} from './phone-screen.mjs?v=1.4.10';
-import {drawChoiceCard,choiceCardTextHeight} from './card-treatments.mjs?v=1.4.10';
-import {drawEventLinks,alignEventCards,decisionProseBounds} from './event-links.mjs?v=1.4.10';
-import {CardTransition,playCardTransition,cardLayout,transferCards,presentationDuration} from './card-presentation.mjs?v=1.4.10';
-import {CARD_ENTRY_STAGGER} from './card-motion.mjs?v=1.4.10';
+import {presentedStats,attributeFeedback,headerChangeAmounts} from './attribute-feedback.mjs?v=1.4.11';
+import {phoneScreen,PHONE_FONT,PHONE_BOLD_FONT,GAME_TEXT,CHOICE_CARD_DROP} from './phone-screen.mjs?v=1.4.11';
+import {drawChoiceCard,choiceCardTextHeight} from './card-treatments.mjs?v=1.4.11';
+import {drawEventLinks,alignEventCards,decisionProseBounds} from './event-links.mjs?v=1.4.11';
+import {CardTransition,playCardTransition,cardLayout,transferCards,presentationDuration} from './card-presentation.mjs?v=1.4.11';
+import {CARD_ENTRY_STAGGER} from './card-motion.mjs?v=1.4.11';
 
 // Preserve the existing black-and-white canvas and HyperCard dissolve treatment.
 // All narrative comes from the author's script; this file only handles presentation.
@@ -446,7 +446,7 @@ try {
     animationFPS:prefs.animationFPS, fonts: { story: STORY_FONT, body: BODY_FONT, small: SMALL_FONT }, revealedStats: Object.keys(state.stats),
     controls: layout.buttons, saveFailed, logs: state.logs.map(id => LOGS[id]), message: MESSAGES[state.message] || null });
   if(['127.0.0.1','localhost'].includes(location.hostname)) {
-    const {mountEditor}=await import('./editor-client.mjs?v=1.4.10');
+    const {mountEditor}=await import('./editor-client.mjs?v=1.4.11');
     editor=await mountEditor({
       current:()=>editorPreview||(state.phase==='intro'?{type:'intro',id:state.node}:currentWarning(state)?{type:'messages',id:currentWarning(state).id}:state.message?{type:'messages',id:state.message}:statusEntry(state,STORY_RULES).id?{type:'logs',id:statusEntry(state,STORY_RULES).id}:state.events.length?{type:'actions',id:state.events.at(-1).id}:{type:'logs',id:'opening'}),
       apply:(doc,{temporary=false}={})=>{stopStatCue();cardAudio.cancel();applyDocument(doc);if(!temporary){state=reconcileGame(state);if(testBackup)testBackup.state=reconcileGame(testBackup.state);}animationId++;busy=false;redraw();},

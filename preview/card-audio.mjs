@@ -1,4 +1,4 @@
-import {cardSoundTimeline} from './card-motion.mjs?v=1.4.10';
+import {cardSoundTimeline} from './card-motion.mjs?v=1.4.11';
 export const CARD_ARRIVAL_SOUNDS=['arrival','arrival-2','arrival-3','arrival-4'];
 
 // Dry PC-speaker card cues and the original reading click. Attribute/story audio stays silent.

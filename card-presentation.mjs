@@ -1,16 +1,16 @@
-import {headerStatLayout} from './game-stats.mjs?v=1.4.10';
-import {GAIN_MS,DEAL_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible,cardExitKind,withdrawal,presentationDuration} from './card-motion.mjs?v=1.4.10';
-import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.10';
+import {headerStatLayout} from './game-stats.mjs?v=1.4.11';
+import {GAIN_MS,DEAL_MS,CARD_REDEAL,entry,motion,smooth,segment,inkVisible,cardExitKind,withdrawal,presentationDuration} from './card-motion.mjs?v=1.4.11';
+import {drawSelectionHand,SELECTION_HOLD_MS} from './selection-hand.mjs?v=1.4.11';
 import {animateFrames,requestAnimationTick,cancelAnimationTick} from './animation-clock.mjs';
 
 export const FORMAT_MS=GAIN_MS;
-export {presentationDuration} from './card-motion.mjs?v=1.4.10';
+export {presentationDuration} from './card-motion.mjs?v=1.4.11';
 export const HEADER_BOTTOM=200;
 export const MAC_FONT='Geneva, Helvetica, sans-serif';
 const hash=n=>{n=Math.imul(n^(n>>>16),0x45d9f3b);n=Math.imul(n^(n>>>16),0x45d9f3b);return ((n^(n>>>16))>>>0)/4294967296;};
 const seed=value=>[...String(value)].reduce((n,c)=>Math.imul(n^c.charCodeAt(0),16777619),2166136261)>>>0;
 
-export {cardLayout} from './phone-screen.mjs?v=1.4.10';
+export {cardLayout} from './phone-screen.mjs?v=1.4.11';
 
 // Receipt amounts decide the glyphs. Net totals are deliberately independent:
 // +5 direct rapture still reads +5 when task time also drains 4.
