@@ -1,5 +1,5 @@
 import {choices,motion} from './granola-motion.mjs';
-import {GranolaRenderer} from './granola-render.mjs';
+import {GranolaRenderer} from './granola-render.mjs?v=20260926-2';
 
 const $=s=>document.querySelector(s),buttons=[...document.querySelectorAll('[data-choice]')];
 const status=$('#status'),replay=$('#replay'),pause=$('#pause'),reduce=$('#reduce');

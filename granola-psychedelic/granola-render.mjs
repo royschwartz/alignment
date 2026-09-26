@@ -33,7 +33,7 @@ export class GranolaRenderer {
   this.numbers=new Map();this.gain=numberSprite('+1');this.loss=numberSprite('−1');
   this.cards=choices.map((card,index)=>this.makeCard(card,index));
  }
- num(value){if(!this.numbers.has(value))this.numbers.set(value,numberSprite(value));return this.numbers.get(value);}
+ num(value){if(!this.numbers.has(value))this.numbers.set(value,numberSprite(value,2));return this.numbers.get(value);}
  makeCard(card,index){
   const c=surface(card.w,card.h),g=c.getContext('2d',{willReadFrequently:true});g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.strokeStyle='#000';g.lineWidth=1;rect(g,0,0,c.width,c.height);rect(g,4,4,c.width-8,c.height-8);
   // Offset checker weave: a printed border, not another illustration.
