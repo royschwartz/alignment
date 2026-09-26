@@ -4,21 +4,8 @@ const TAU=Math.PI*2;
 const bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const hash=n=>{let x=Math.imul(n^0x45d9f3b,0x45d9f3b);x=Math.imul(x^(x>>>16),0x45d9f3b);return((x^(x>>>16))>>>0)/4294967295;};
 const surface=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
-const digits={
- '0':['01110','11011','11011','11011','11011','11011','01110'],
- '1':['00100','01100','00100','00100','00100','00100','01110'],
- '2':['01110','11011','00011','00110','01100','11000','11111'],
- '3':['11110','00011','00011','01110','00011','00011','11110'],
- '4':['00011','00111','01011','11011','11111','00011','00011'],
- '5':['11111','11000','11000','11110','00011','11011','01110'],
- '6':['01110','11000','11000','11110','11011','11011','01110'],
- '7':['11111','00011','00110','00110','01100','01100','01100'],
- '8':['01110','11011','11011','01110','11011','11011','01110'],
- '9':['01110','11011','11011','01111','00011','00011','01110'],
- '+':['00000','00100','00100','11111','00100','00100','00000'],
- '−':['00000','00000','00000','11111','00000','00000','00000'],
-};
-function numberSprite(value,scale=3){const str=String(value),c=surface((str.length*6-1)*scale,7*scale),g=c.getContext('2d');g.fillStyle='#000';[...str].forEach((s,i)=>digits[s]?.forEach((row,y)=>[...row].forEach((v,x)=>{if(v==='1')g.fillRect((i*6+x)*scale,y*scale,scale,scale);})));return c;}
+// Same regular number face and size as the main game and current granola study.
+function numberSprite(value){return textSprite(String(value),'18px Geneva, Helvetica, sans-serif');}
 function textSprite(value,font='16px Times',pad=2){const c=surface(1,1),g=c.getContext('2d');g.font=font;const metrics=g.measureText(value);c.width=Math.ceil(metrics.width)+pad*2;c.height=Math.ceil(metrics.actualBoundingBoxAscent+metrics.actualBoundingBoxDescent)+pad*2;g.font=font;g.fillStyle='#000';g.textBaseline='alphabetic';g.fillText(value,pad,pad+metrics.actualBoundingBoxAscent);const d=g.getImageData(0,0,c.width,c.height);for(let i=0;i<d.data.length;i+=4)d.data[i+3]=d.data[i+3]>=105?255:0;g.putImageData(d,0,0);return c;}
 function line(g,x1,y1,x2,y2){g.beginPath();g.moveTo(Math.round(x1)+.5,Math.round(y1)+.5);g.lineTo(Math.round(x2)+.5,Math.round(y2)+.5);g.stroke();}
 function rect(g,x,y,w,h){g.strokeRect(Math.round(x)+.5,Math.round(y)+.5,Math.round(w)-1,Math.round(h)-1);}
@@ -33,7 +20,7 @@ export class GranolaRenderer {
   this.numbers=new Map();this.gain=numberSprite('+1');this.loss=numberSprite('−1');
   this.cards=choices.map((card,index)=>this.makeCard(card,index));
  }
- num(value){if(!this.numbers.has(value))this.numbers.set(value,numberSprite(value,2));return this.numbers.get(value);}
+ num(value){if(!this.numbers.has(value))this.numbers.set(value,numberSprite(value));return this.numbers.get(value);}
  makeCard(card,index){
   const c=surface(card.w,card.h),g=c.getContext('2d',{willReadFrequently:true});g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.strokeStyle='#000';g.lineWidth=1;rect(g,0,0,c.width,c.height);rect(g,4,4,c.width-8,c.height-8);
   // Offset checker weave: a printed border, not another illustration.
